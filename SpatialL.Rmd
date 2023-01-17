@@ -36,12 +36,11 @@ Viene representada en formas como:
 -   lineas (line string), i.e, caminos en el mapa
 -   poligonos (shapes) , i.e, distritos censales
 
-
 \newpage
 
 ### Librerías
 
-```{r echo = TRUE, results = 'hide', eval = TRUE}
+```{r, results='hide', warning=FALSE, message=FALSE}
 library(tidycensus)
 library(tidyr)
 library(censusapi)
@@ -51,6 +50,9 @@ library(dplyr)
 library(stringr)
 library(units)
 library(stats)
+library(grDevices)
+library(dotenv)
+library(sf)
 ```
 
 \newpage
@@ -95,7 +97,7 @@ readRenviron("~/.Renviron")
 
 Tomamos como caso de prueba al estado de New York, para visualizar el valor medio de las viviendas a nivel de condados, podemos variar el nivel geográfico con el parámetro $\textit{geography}$
 
-```{r echo = TRUE, results = 'hide'}
+```{r, results='hide', warning=FALSE, message=FALSE}
 # Creamos el objeto median_nyc que contiene la variable "median income"
 # con nivel geografico condados(county).
 medianincomenystate <- get_acs(geography = "county",
@@ -104,8 +106,6 @@ medianincomenystate <- get_acs(geography = "county",
         variable = "B19013_001" #median income 
         )
 ```
-
-\newpage
 
 ### Tidycensus, funciones principales para obtener data
 
@@ -127,7 +127,7 @@ Para el Decennial Census 2000 a 2010, usar "sf1" o "sf2", el 2020 Decennial Cens
 
 Para variables de la American Community Survey, debemos especificar el año de la encuesta, por ejemplo "acs1" para el primer año de la ACS, por ejemplo si se quiere acceder a la data $\textit{5-year ACS}$
 
-```{r}
+```{r, results='hide', warning=FALSE, message=FALSE}
 load_acs = load_variables(year = 2020, dataset = "acs5")
 ```
 
@@ -201,6 +201,8 @@ tm_shape(medianincomenystate) +
 
 \newpage
 
+### Variables en tmap
+
 Veamos nuevamente la variable "median income"
 
 ```{r}
@@ -210,6 +212,8 @@ tm_shape(medianincomenystate) +
 ```
 
 \newpage
+
+### Labels y otras opciones de diseño
 
 Podemos añadir más variables y seguir personalizando nuestros plots, por ejemplo añadiendo histogramas por distintos tipos de clasificación, quantiles ("quantile"), equal intervals ("equal") y Jenks natural breaks ("jenks"), con tm_layout() nos permite customizar el estilo del mapa, del histograma y añadir leyendas.
 
@@ -234,8 +238,7 @@ tm_shape(medianincomenystate) +
 
 Podemos trabajar con niveles geográficos de menor nivel, como condados y tracts, trabajamos la ciudad de New York, formado por ciertos condados.
 
-
-```{r}
+```{r, results='hide', warning=FALSE, message=FALSE}
 # Creamos el objeto medianincomenyc que contiene la variable "median income"
 # con nivel geografico de tract.
 medianincomenyc <- get_acs(geography = "tract",
@@ -244,12 +247,12 @@ medianincomenyc <- get_acs(geography = "tract",
         variable = "B19013_001" #median income 
         )
 ```
-\newpage
 
 Filtramos respecto de los condados que queremos visualizar, aquellos cerca de la ciudad de NY, usamos $\textit{tidyr}$ con la función separate(), de manera de poder filtrar los condados que nos interesan
 
 El siguiente código nos permite crear nuevas columnas "tract" y "county", de manera que podemos filtra aquellos condados de interes con otras funciones, ademas usamos na.omit() para botar aquellos valores con NA y así limpiar la data
-```{r}
+
+```{r, results='hide', warning=FALSE, message=FALSE}
 medianincomenyc <- separate(medianincomenyc,
          NAME,
          into = c("tract", "county"),
@@ -261,6 +264,8 @@ medianincomenyc <- na.omit(medianincomenyc)
 ```
 
 \newpage
+
+### Plot con tmap de NYC sobre los ingresos promedios
 
 ```{r}
 tm_shape(medianincomenyc) + 
@@ -276,6 +281,188 @@ tm_shape(medianincomenyc) +
             legend.hist.width = 7)
 ```
 
+\newpage
+
+## Spatial Machine Learning
+
+Replicamos la simulación [Spatial Machine Learning, Justin Morgan Williams](https://justinmorganwilliams.medium.com/spatial-machine-learning-29137dcd1f5f), con el fin de entender los desafíos con los que se encuentra el Machine Learning con los datos espaciales, citando.
+
+-   $\textit{Autocorrelación espacial}$ $\rightarrow$ autocorrelación debida a la similitud en la ubicación del componente espacial de los datos
+
+-   $\textit{Heterogeneidad espacial}$ $\rightarrow$ datos que no siguen una distribución idéntica dentro del área de muestra
+
+-   $\textit{Limited Ground Truth}$ $\rightarrow$ muchas variables explicativas, verdad de terreno limitada
+
+-   $\textit{Multiple Scales and Resolutions}$ $\rightarrow$ puede existir en múltiples escalas y resoluciones
+
+Si no se toman en cuenta, pueden tener efecto en la predicción de Machine Learning, entregando resultados que no son óptimos, la simulación trata los primeros 2 puntos, autoccorelación espacial y heterogeneridad espacial.
+
+### Importando data
+
+Importamos data de NYC US Census con $\textit{tidycensus}$
+
+```{r, results='hide', warning=FALSE, message=FALSE}
+#load package
+library(dotenv)
+library(sf)
+library(tidycensus)
+library(dplyr)
+
+# set county variables, condados que forman NYC
+nyc_counties <- c("Bronx","Kings","New York","Queens","Richmond")
+
+# set list of census variables 
+
+# variable list
+variables <- c(
+  median_value = "B25077_001",
+  median_rooms = "B25018_001",
+  median_income = "DP03_0062",
+  total_population = "B01003_001",
+  median_age = "B01002_001",
+  pct_college = "DP02_0068P",
+  pct_foreign_born = "DP02_0094P",
+  pct_white = "DP05_0077P",
+  pct_black = "DP05_0078P",
+  pct_hispanic = "DP05_0070P",
+  pct_asian = "DP05_0080P",
+  median_year_built = "B25037_001",
+  percent_ooh = "DP04_0046P"
+)
+```
+
+\newpage
+
+### Import usando get_acs()
+
+Llamamos las variables antes definidas, en los condados que forman NYC usando get_acs()
+
+```{r, results='hide', warning=FALSE, message=FALSE}
+# get acs data y transforma a tipo NYC EPSG
+nyc_census_data <- get_acs(
+  geography = "tract",
+  variables = variables,
+  state = "NY",
+  county = nyc_counties,
+  geometry = TRUE,
+  output = "wide",
+  year = 2020,
+  key = Sys.getenv("CENSUS_API")) %>% 
+  st_transform(2263)
+
+```
+
+\newpage
+
+## Plot de la variable dependiente
+
+Nuestra variable dependiente será el valor promedio de la vivienda en NYC.
+
+```{r, results='hide', warning=FALSE, message=FALSE}
+
+# plot tmap
+(nyc_median_value_hist_tm <- nyc_census_data[!st_is_empty(nyc_census_data),,drop=F] %>% 
+tm_shape() +
+  tm_polygons(col = "median_valueE",
+          palette = "cividis",
+          title = "2016-2020 ACS",
+          legend.hist = TRUE,
+          legend.format = scales::dollar_format()) +
+  tm_layout(main.title = "NYC Median Home Value by Census Tract",
+            frame = FALSE,
+            legend.outside = TRUE,
+            bg.color = "grey100",
+            legend.hist.width = 5,
+            ))
+
+# save plot
+tmap_save(nyc_median_value_hist_tm, "nyc_median_value.png", width=1920, height=1080, asp=0)
+
+```
+
+\newpage
+
+Notamos en el histograma que se presenta una asimetría a la derecha, existe una población no menor cuyos hogares perciben ingresos mucho mayores a la mediana, y vemos que existe data perdida, para el primer punto, podemos aplicar una transformación a la variable dependiente, tomando su raiz cuadrada para reducir esta asimetría a la derecha y tener los datos mejor distribuidos, acercándose más a una distribución normal, y en consecuencia, entregando resultados más precisos.
+
+### Transformación de los datos
+
+Creamos la nueva variable tomando la raiz cuadrada de la variable dependiente median_valueE
+
+```{r, results='hide', warning=FALSE, message=FALSE}
+
+# create plot
+(nyc_median_value_sqrt_hist_tm <- nyc_census_data[!st_is_empty(nyc_census_data),,drop=F] %>% #limpiamos datos vacios
+   mutate(sqrt_med_value = sqrt(median_valueE)) %>% #variable_sqrt
+tm_shape() +
+  tm_polygons(col = "sqrt_med_value",
+          palette = "cividis",
+          title = "2016-2020 ACS (sqrt)",
+          legend.hist = TRUE) +
+  tm_layout(main.title = "NYC Median Home Value by Census Tract",
+            frame = FALSE,
+            legend.outside = TRUE,
+            bg.color = "grey100",
+            legend.hist.width = 5,
+            ))
+
+# save plot
+tmap_save(nyc_median_value_sqrt_hist_tm, "nyc_median_value_sqrt.png", width=1920, height=1080, asp=0)
+```
+
+\newpage
+
+### Preparando la data para modelar
+
+Debemos borrar aquellas variables con data NA, y eliminar columnas con información del margen de error eliminando las columnas que terminan con "M", se le quita la E final a las columnas como median_valueE y se añaden las variables pop_density y median_structure_age.
+
+-   pop_density $\rightarrow$ mide densidad de población por metros cuadrados
+
+-   median_structure_age $\rightarrow$ resta 2020 de median_year_built
+
+```{r, warning=FALSE, message=FALSE}
+# load packages
+#library(dplyr)
+#library(stringr)
+#library(units)
+#library(stats)
+
+# prep data for model
+nyc_census_data_prepped <- nyc_census_data %>% 
+  mutate(pop_density = as.numeric(set_units(total_populationE / st_area(.),
+ "1/km2")),
+         median_structure_age = 2020 - median_year_builtE) %>% 
+  select(!ends_with("M")) %>% # drop margin of error cols
+  rename_with(.fn = ~str_remove(.x, "E$")) %>% # remove E from col name
+  na.omit() # omit NA
+
+nyc_census_data_prepped
+```
+
+\newpage
+
+## Modelos
+
+### Simple Linear Regression
+
+Con la data preparada, podemos crear el primer modelo sencillo de regresión lineal, con la variable dependiente, la raiz cuadrada del valor medio de la vivienda ("NYC Median Home Value")
+
+
+```{r}
+# model formula
+formula <- "sqrt(median_value) ~ median_rooms + median_income + 
+pct_college + pct_foreign_born + pct_white + pct_black + pct_hispanic + 
+pct_asian + median_age + percent_ooh + median_structure_age + pop_density"
+
+# compute model
+model1 <- lm(formula = formula, data = nyc_census_data_prepped)
+
+# view model statistics
+summary(model1)
+```
+
+Aquellas variables con mayor p-value son pct_foreign_born, median_age, pop_density, un p valor alto nos dice que la variable no tiene mucha significancia en el resultado (típicamente pedimos que sea menor a 0.05 para que la variable se considere significativa), notamos tambien que las primeras dos variables se correlacionan negativamente con median_value, es decir, a mayor cantidad de nacidos extranjeros y edad promedio, se tiene que el valor medio de la vivienda disminuye. Al contrario, si aumenta la densidad poblacional, notamos que el valor medio de la vivienta aumenta.
+
+En la regresión lineal, los errores no son independientes en un modelo con componentes espaciales, esto es porque la autocorrelación espacial está presente en el erro, lo que nos dice que el performance del modelo depende de la posición geográfica.
 
 ### Indice de Moran
 
