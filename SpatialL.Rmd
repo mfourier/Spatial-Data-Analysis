@@ -1,0 +1,282 @@
+---
+title: "Spatial Machine Learning"
+author: "Maximiliano S. Lioi"
+date: "2023-01-12"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Documentación
+
+-   [Analyzing US Census Data - Kyle Walker](https://walker-data.com/census-r/)
+-   [Spatial Machine Learning](https://justinmorganwilliams.medium.com/spatial-machine-learning-29137dcd1f5f)
+-   [Import and Map NYC Census data into R with tidycensus](https://justinmorganwilliams.medium.com/import-nyc-census-data-into-r-with-tidycensus-c94d2d1f23fa)
+
+En $\textit{Analyzing US Census Data - Kyle Walker}$ se muestra como hacer uso de las librerías, entre ellas:
+
+-   tidycensus : Paquete de R diseñado para facilitar procesos de adquirir y trabajar data de US Census, busca distribuir los datos del censo en un formado compatible con tidyverse, además busca agilizar el proceso del tratado de datos para aquel que esté trabajando en el analisis de datos. [Ch2.](https://walker-data.com/census-r/an-introduction-to-tidycensus.html)
+
+-   tidyverse : Colleción de paquetes de R diseñados para la ciencia de datos tales como $\textit{ggplot2}$ para la visualización de data, $\textit{readr}$ para importar y exportar bases de datos, $\textit{tidyr}$ para la remodelación de datos, entre otros. [Ch3.](https://walker-data.com/census-r/wrangling-census-data-with-tidyverse-tools.html)
+
+-   tigris : Paquete de R que busca simplificar procesos para los usuarios de obtención de información y uso de data con atributos geográficos (data espacial, Census geographic dataset), data tipo $\textit{sf}$ (simple features) viene con atributos de geometría (vector data type, tipicamente representados por puntos lineas o poligonos). [Ch5.](https://walker-data.com/census-r/census-geographic-data-and-applications-in-r.html)
+
+-   ggplot2 : Paquete de R enfocado en la visualización de data, nos permite realizar mapas con información de US Census data. [Ch6.](https://walker-data.com/census-r/mapping-census-data-with-r.html)
+
+### Spatial Data
+
+Viene representada en formas como:
+
+-   puntos (point reference data), i.e, ciudades en el mapa
+-   lineas (line string), i.e, caminos en el mapa
+-   poligonos (shapes) , i.e, distritos censales
+
+
+\newpage
+
+### Librerías
+
+```{r echo = TRUE, results = 'hide', eval = TRUE}
+library(tidycensus)
+library(tidyr)
+library(censusapi)
+library(tmap)
+library(ggplot2)
+library(dplyr)
+library(stringr)
+library(units)
+library(stats)
+```
+
+\newpage
+
+## Activacion API key
+
+El siguiente código ejecuta la activación de la llave 'API Key' que nos permite descargar Census Data, mediante funciones como get_acs, el primer argumento es la llave utilizada en este código.
+
+```{r, eval=FALSE}
+census_api_key("6034739b488f5fc230e467601ed20256bb25831b", install = TRUE)
+```
+
+Este comando tiene la estructura
+
+```{r, eval=FALSE}
+census_api_key(key, overwrite = BOOL, install = BOOL)}
+```
+
+### Argumentos
+
+-   key: La API Key entregada por el Censo, ingresar con "". Se obtiene en [API Census](https://api.census.gov/data/key_signup.html).
+
+-   overwrite: Si está en TRUE, sobreescribirá sobre una ya existente CENSUS_API_KEY que tengamos instalado en nuestro archivo .Renviron
+
+-   install: Si está en TRUE, instalará la llave en nuestro archivo .Renviron para las futuras sesiones, de no existir crea uno. Viene en FALSE por defecto.
+
+Despues de instalada la llave, puede usarse en cualquier momento llamando el siguiente comando
+
+```{r}
+Sys.getenv("CENSUS_API_KEY")
+```
+
+Reload del enviroment para poder usar la llave sin tener que resetear R
+
+```{r, eval=FALSE}
+readRenviron("~/.Renviron")
+```
+
+\newpage
+
+## NY US Census data
+
+Tomamos como caso de prueba al estado de New York, para visualizar el valor medio de las viviendas a nivel de condados, podemos variar el nivel geográfico con el parámetro $\textit{geography}$
+
+```{r echo = TRUE, results = 'hide'}
+# Creamos el objeto median_nyc que contiene la variable "median income"
+# con nivel geografico condados(county).
+medianincomenystate <- get_acs(geography = "county",
+        state = "New York",
+        geometry = TRUE, #descarga el componente espacial del tramo censal
+        variable = "B19013_001" #median income 
+        )
+```
+
+\newpage
+
+### Tidycensus, funciones principales para obtener data
+
+Para obtener datos de las distintas bases $\textit{tidycensus}$ ofrece las siguientes funciones
+
+-   get_decennial() : Solicita datos de las API US Decennial Census para 2000, 2010 y 2020.
+
+-   get_acs() : Solicita datos de las muestras de la American Community Survey de 1 y 5 años. Los datos están disponibles desde el ACS de 1 año hasta 2005 y el ACS de 5 años hasta 2005-2009.
+
+-   get_estimates() : Interfaz para las Population Estimates APIs. Estos conjuntos de datos incluyen estimaciones anuales de las características de la población por estado, condado y área metropolitana, junto con componentes de estimaciones demográficas de cambio como nacimientos, muertes y tasas de migración.
+
+-   get_pums() : Accede a los datos de ACS Public Use Microdata Sample APIs, Estas muestras incluyen registros anónimos a nivel individual de la ACS organizados por hogar y son muy útiles para muchos análisis de ciencias sociales, get_pums() se cubre con más profundidad en los Capítulos 9 y 10 de $\textit{Analyzing US Census data}$.
+
+-   get_flows() : Interfaz para la ACS Migration Flows APIs. Incluye información sobre los flujos de entrada y salida de varias geografías para las muestras de ACS de 5 años, lo que permite realizar análisis de origen y destino
+
+De manera más general, para ver que variables se pueden obtener, $\textit{tidycensus}$ nos provee de la función load_variables(), dicha función requiere de 2 argumentos, $\textit{year}$ que toma el año de referencia de la data, y $\textit{dataset}$.
+
+Para el Decennial Census 2000 a 2010, usar "sf1" o "sf2", el 2020 Decennial Census tambien acepta "sf3" y "sf4", sf hace referencia a Summary Files.
+
+Para variables de la American Community Survey, debemos especificar el año de la encuesta, por ejemplo "acs1" para el primer año de la ACS, por ejemplo si se quiere acceder a la data $\textit{5-year ACS}$
+
+```{r}
+load_acs = load_variables(year = 2020, dataset = "acs5")
+```
+
+\newpage
+
+### Plot del estado New York
+
+Comencemos a visualizar la información, probaremos primeramente con plot, y luego usaremos herramientas mas avanzadas que nos ofrecen los paquetes
+
+```{r}
+plot(medianincomenystate["NAME"])
+```
+
+\newpage
+
+## Plot del valor medio de las viviendas en New York
+
+### Map-making con ggplot2 y geom_sf
+
+En $\textit{ggplot2}$ podemos plotear rapidamente objetos de tipo $\textit{sf}$ mediante geom_sf(), para entender la sintaxis realizamos el siguiente plot de el estimado de la variable "Median income New York".
+
+```{r}
+ggplot(data = medianincomenystate, aes(fill = estimate)) + 
+  geom_sf()
+```
+
+\newpage
+
+### Customizing ggplot2 maps
+
+Podemos customizar nuestros plots en ggplot2, la estructura es la siguiente
+
+```{r}
+ggplot(data = medianincomenystate, aes(fill = estimate)) +
+  geom_sf() +
+  scale_fill_distiller(palette = "YlGnBu",
+                       direction = 1) +
+  labs(title = "Median income New York, 2016-2020",
+       caption = "Data source: 2016-2020, US Census",
+       fill = "Median income estimate") +
+  theme_void()
+```
+
+Las funciones que acompañan la sintaxis nos permiten customizar nuestro plot en ggplot2.
+
+-   scale_fill_distiller() : Nos permite especificar una paleta de colores de [ColorBrewer](https://colorbrewer2.org/#type=sequential&scheme=BuGn&n=3) en el plot.
+
+-   labs() : Nos permite añadir título, caption, legend label en el plot.
+
+-   theme_void() : Nos permite remover el fondo y la grilla cuadrícular.
+
+\newpage
+
+### Histograma del valor medio de las viviendas en el estado New York
+
+```{r}
+hist(medianincomenystate$estimate)
+```
+
+\newpage
+
+### Map-making con tmap
+
+La sintaxis en similar a la usada en $\textit{ggplot2}$, el objeto mapa se inicializa con la función tm_shape() y nos permite visualizar los distritos censales con tm_polygons()
+
+```{r}
+library(tmap)
+tm_shape(medianincomenystate) + 
+  tm_polygons()
+```
+
+\newpage
+
+Veamos nuevamente la variable "median income"
+
+```{r}
+library(tmap)
+tm_shape(medianincomenystate) + 
+  tm_polygons(col = "estimate")
+```
+
+\newpage
+
+Podemos añadir más variables y seguir personalizando nuestros plots, por ejemplo añadiendo histogramas por distintos tipos de clasificación, quantiles ("quantile"), equal intervals ("equal") y Jenks natural breaks ("jenks"), con tm_layout() nos permite customizar el estilo del mapa, del histograma y añadir leyendas.
+
+```{r}
+tm_shape(medianincomenystate) + 
+  tm_polygons(col = "estimate",
+              style = "jenks",
+              n = 5, #num de intervalos
+              palette = "Purples",
+              title = "2016 - 2020 US Census",
+              legend.hist = TRUE) +
+  tm_layout(title = "NY State Median Income", 
+            frame = FALSE,
+            legend.outside = TRUE,
+            bg.color = "grey80", #backgroundcolor
+            legend.hist.width = 7)
+```
+
+\newpage
+
+### NYC Median Income
+
+Podemos trabajar con niveles geográficos de menor nivel, como condados y tracts, trabajamos la ciudad de New York, formado por ciertos condados.
+
+
+```{r}
+# Creamos el objeto medianincomenyc que contiene la variable "median income"
+# con nivel geografico de tract.
+medianincomenyc <- get_acs(geography = "tract",
+        state = "New York",
+        geometry = TRUE, #descarga el componente espacial del tramo censal
+        variable = "B19013_001" #median income 
+        )
+```
+\newpage
+
+Filtramos respecto de los condados que queremos visualizar, aquellos cerca de la ciudad de NY, usamos $\textit{tidyr}$ con la función separate(), de manera de poder filtrar los condados que nos interesan
+
+El siguiente código nos permite crear nuevas columnas "tract" y "county", de manera que podemos filtra aquellos condados de interes con otras funciones, ademas usamos na.omit() para botar aquellos valores con NA y así limpiar la data
+```{r}
+medianincomenyc <- separate(medianincomenyc,
+         NAME,
+         into = c("tract", "county"),
+         sep = ", ")
+
+medianincomenyc <- medianincomenyc %>% filter(grepl('Bronx County|New York County|Queens County|Kings County|Richmond County', county))
+
+medianincomenyc <- na.omit(medianincomenyc)
+```
+
+\newpage
+
+```{r}
+tm_shape(medianincomenyc) + 
+  tm_polygons(col = "estimate",
+              style = "equal",
+              palette = "Purples",
+              title = "2016 - 2020 US Census",
+              legend.hist = TRUE) +
+  tm_layout(title = "NYC Median Income by Census Tract", 
+            frame = FALSE,
+            legend.outside = TRUE,
+            bg.color = "grey80", #backgroundcolor
+            legend.hist.width = 7)
+```
+
+
+### Indice de Moran
+
+$$I = \frac{N}{W} \sum_{i,j} w_{ij} (x_i - \bar{x}) (x_j - \bar{x})$$
