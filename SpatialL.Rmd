@@ -6,6 +6,9 @@ output:
   pdf_document: default
   html_document:
     df_print: paged
+bibliography: "references.bib"    
+fontsize: 11pt
+geometry: margin=1in    
 ---
 
 ```{r setup, include=FALSE}
@@ -15,7 +18,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ### Documentación
 
 -   [Analyzing US Census Data - Kyle Walker](https://walker-data.com/census-r/)
--   [Spatial Machine Learning](https://justinmorganwilliams.medium.com/spatial-machine-learning-29137dcd1f5f)
+-   [Spatial Machine Learning - J. Morgan](https://justinmorganwilliams.medium.com/spatial-machine-learning-29137dcd1f5f)
 -   [Import and Map NYC Census data into R with tidycensus](https://justinmorganwilliams.medium.com/import-nyc-census-data-into-r-with-tidycensus-c94d2d1f23fa)
 
 En $\textit{Analyzing US Census Data - Kyle Walker}$ se muestra como hacer uso de las librerías, entre ellas:
@@ -285,7 +288,7 @@ tm_shape(medianincomenyc) +
 
 ## Spatial Machine Learning
 
-Replicamos la simulación [Spatial Machine Learning, Justin Morgan Williams](https://justinmorganwilliams.medium.com/spatial-machine-learning-29137dcd1f5f), con el fin de entender los desafíos con los que se encuentra el Machine Learning con los datos espaciales, citando.
+Replicamos la simulación [Spatial Machine Learning, Justin Morgan Williams](https://justinmorganwilliams.medium.com/spatial-machine-learning-29137dcd1f5f), con el fin de entender los desafíos con los que se encuentra el Machine Learning con los datos espaciales, dicha simulación esta fuertemente basada en el capítulo 8 de [Analyzing US Census Data, Modeling US Census Data](https://walker-data.com/census-r/modeling-us-census-data.html), respecto de los desafíos al tratar datos espaciales, citando.
 
 -   $\textit{Autocorrelación espacial}$ $\rightarrow$ autocorrelación debida a la similitud en la ubicación del componente espacial de los datos
 
@@ -352,6 +355,30 @@ nyc_census_data <- get_acs(
 
 ```
 
+Las variables que importamos, que se corresponden a estimados que entrega la ACS sobre los condados de NY, son las siguientes:
+
+-   median_valueE : El valor medio de la vivienda del tramo censal (nuestro outcome)
+
+-   median_roomsE : Cantidad media de habitaciones por casa en el tramo censal
+
+-   total_populationE : Población total
+
+-   median_ageE : Edad media de la población en el tramo censal
+
+-   median_year_builtE : Año promedio donde se construyó la vivienda
+
+-   median_incomeE : Ingreso medio de los hogares en el tramo censal
+
+-   pct_collegeE : Porcentaje de la población de 25 años o más con un título universitario de cuatro años
+
+-   pct_foreign_bornE: Porcentaje de la población que nació fuera de EE.UU
+
+-   pct_whiteE : Porcentaje de la población que se identifica como blanco no-hispano, se sigue la misma lógica con pct_blackE, pct_asian, pct_hispanic.
+
+-   percent_oohE : El porcentaje de unidades de vivienda en el tramo censal que están ocupadas por sus propietarios.
+
+Más detalles sobre la estructura del código se encuentran en la sección 8.2.1 : Data setup and exploratory data analysis}, en el libro se toma la misma variable "median home value", pero que a diferencia de esta réplica, se toman los tramos censales en Dallas-Fort Worth metropolitan area, en consecuencia también cambian el código usando en st_transform, a un sistema de referencias apropiado para North Texas (code 32148), a diferencia del caso NYC donde usamos code 2263
+
 \newpage
 
 ## Plot de la variable dependiente
@@ -413,7 +440,7 @@ tmap_save(nyc_median_value_sqrt_hist_tm, "nyc_median_value_sqrt.png", width=1920
 
 ### Preparando la data para modelar
 
-Debemos borrar aquellas variables con data NA, y eliminar columnas con información del margen de error eliminando las columnas que terminan con "M", se le quita la E final a las columnas como median_valueE y se añaden las variables pop_density y median_structure_age.
+Debemos borrar aquellas variables con data NA, y eliminar columnas con información del margen de error eliminando las columnas que terminan con "M", se le quita la E final a las columnas como median_valueE y se añaden las variables pop_density y median_structure_age, esto pues buscamos transformar los predictores de manera que se represente mejor la relación que tiene con la variable de salida (en este caso, median_value)
 
 -   pop_density $\rightarrow$ mide densidad de población por metros cuadrados
 
@@ -442,10 +469,11 @@ nyc_census_data_prepped
 
 ## Modelos
 
+En esta sección pasaremos al desarrollo de modelos de predicción, para ello replicamos los modelos de predicción hecho en [Spatial Machine Learning, Justin Morgan Williams](https://justinmorganwilliams.medium.com/spatial-machine-learning-29137dcd1f5f) y además, complementamos con el Capítulo 8 del libro [Analyzing US Census Data - Modeling US Census Data](https://walker-data.com/census-r/modeling-us-census-data.html), capítulo donde se estudian conceptos durante la primera sección como indices de segregación y diversidad los cuales son usados en ciencias sociales para explicar patrones demográficos, en la segunda sección se estudian tópicos en modelamiento estadístico, incluyendo métodos de regresión con atributos espaciales, en donde tomamos en cuenta conceptos como la autocorrelación espacial que está inherente en la mayoría de las variables del censo; en la tercera sección del capítulo se estudian conceptos como clasificación, clusterización y regionalización, que son comunes en técnicas de Machine Learning. Nos enfocamos en particular en la segunda sección del capítulo.
+
 ### Simple Linear Regression
 
 Con la data preparada, podemos crear el primer modelo sencillo de regresión lineal, con la variable dependiente, la raiz cuadrada del valor medio de la vivienda ("NYC Median Home Value")
-
 
 ```{r}
 # model formula
@@ -460,10 +488,29 @@ model1 <- lm(formula = formula, data = nyc_census_data_prepped)
 summary(model1)
 ```
 
-Aquellas variables con mayor p-value son pct_foreign_born, median_age, pop_density, un p valor alto nos dice que la variable no tiene mucha significancia en el resultado (típicamente pedimos que sea menor a 0.05 para que la variable se considere significativa), notamos tambien que las primeras dos variables se correlacionan negativamente con median_value, es decir, a mayor cantidad de nacidos extranjeros y edad promedio, se tiene que el valor medio de la vivienda disminuye. Al contrario, si aumenta la densidad poblacional, notamos que el valor medio de la vivienta aumenta.
+Aquellas variables con mayor p-value son pct_foreign_born, median_age, pop_density, un p valor alto nos dice que la variable no tiene mucha significancia en el resultado (típicamente pedimos que sea menor a 0.05 para que la variable se considere significativa), notamos tambien que las primeras dos variables se correlacionan negativamente con median_value, es decir, a mayor cantidad de nacidos extranjeros y edad promedio, se tiene que el valor medio de la vivienda disminuye. Al contrario, si aumenta la densidad poblacional, notamos que el valor medio de la vivienta aumenta, podemos ver tambien el valor $R^2$ el cual nos dice que un $0.4757$% de la varianza de median_value es explicado con las variables del modelo (el modelo es deficiente).
 
-En la regresión lineal, los errores no son independientes en un modelo con componentes espaciales, esto es porque la autocorrelación espacial está presente en el erro, lo que nos dice que el performance del modelo depende de la posición geográfica.
+En la regresión lineal, los errores no son independientes en un modelo con componentes espaciales, esto es porque la autocorrelación espacial está presente en el error, lo que nos dice que el performance del modelo depende de la posición geográfica.
 
-### Indice de Moran
+Para saber si este es el fenómeno que se presenta, tomamos en cuenta el Índice de Moran.
 
+### Índice de Moran
+
+Estudiamos [@8444678]
 $$I = \frac{N}{W} \sum_{i,j} w_{ij} (x_i - \bar{x}) (x_j - \bar{x})$$
+
+### Spatial Weights Matrix
+
+```{r, results='hide', warning=FALSE, message=FALSE}
+# create neighbor list object
+nyc_nb <- spdep::poly2nb(nyc_census_data_prepped, queen = TRUE)
+```
+
+\newpage
+
+## Referencias
+
+<div id="refs"></div>
+
+
+
