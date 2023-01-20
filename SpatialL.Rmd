@@ -6,7 +6,8 @@ output:
   pdf_document: default
   html_document:
     df_print: paged
-bibliography: "references.bib"    
+bibliography: "references.bib"
+csl: acm-sig-proceedings-long-author-list.csl
 fontsize: 11pt
 geometry: margin=1in    
 ---
@@ -98,7 +99,7 @@ readRenviron("~/.Renviron")
 
 ## NY US Census data
 
-Tomamos como caso de prueba al estado de New York, para visualizar el valor medio de las viviendas a nivel de condados, podemos variar el nivel geográfico con el parámetro $\textit{geography}$
+Tomamos como caso de prueba al estado de New York, para visualizar el valor medio de las viviendas a nivel de condados, podemos variar el nivel geográfico con el parámetro $\textit{geography}$ (Walker K., 2023) [@walker2023a]
 
 ```{r, results='hide', warning=FALSE, message=FALSE}
 # Creamos el objeto median_nyc que contiene la variable "median income"
@@ -288,7 +289,7 @@ tm_shape(medianincomenyc) +
 
 ## Spatial Machine Learning
 
-Replicamos la simulación [Spatial Machine Learning, Justin Morgan Williams](https://justinmorganwilliams.medium.com/spatial-machine-learning-29137dcd1f5f), con el fin de entender los desafíos con los que se encuentra el Machine Learning con los datos espaciales, dicha simulación esta fuertemente basada en el capítulo 8 de [Analyzing US Census Data, Modeling US Census Data](https://walker-data.com/census-r/modeling-us-census-data.html), respecto de los desafíos al tratar datos espaciales, citando.
+Replicamos la simulación [Spatial Machine Learning, Justin Morgan Williams](https://justinmorganwilliams.medium.com/spatial-machine-learning-29137dcd1f5f), con el fin de entender los desafíos con los que se encuentra el Machine Learning con los datos espaciales, dicha simulación esta fuertemente basada en el capítulo 8 de [Analyzing US Census Data, Modeling US Census Data](https://walker-data.com/census-r/modeling-us-census-data.html)[@walker2023a], respecto de los desafíos al tratar datos espaciales, citando.
 
 -   $\textit{Autocorrelación espacial}$ $\rightarrow$ autocorrelación debida a la similitud en la ubicación del componente espacial de los datos
 
@@ -377,7 +378,7 @@ Las variables que importamos, que se corresponden a estimados que entrega la ACS
 
 -   percent_oohE : El porcentaje de unidades de vivienda en el tramo censal que están ocupadas por sus propietarios.
 
-Más detalles sobre la estructura del código se encuentran en la sección 8.2.1 : Data setup and exploratory data analysis}, en el libro se toma la misma variable "median home value", pero que a diferencia de esta réplica, se toman los tramos censales en Dallas-Fort Worth metropolitan area, en consecuencia también cambian el código usando en st_transform, a un sistema de referencias apropiado para North Texas (code 32148), a diferencia del caso NYC donde usamos code 2263
+Más detalles sobre la estructura del código se encuentran en la sección 8.2.1 (Data setup and exploratory data analysis), en el libro se toma la misma variable "median home value", pero que a diferencia de esta réplica, se toman los tramos censales en Dallas-Fort Worth metropolitan area, en consecuencia también cambian el código usando en st_transform, a un sistema de referencias apropiado para North Texas (code 32148), a diferencia del caso NYC donde usamos code 2263
 
 \newpage
 
@@ -469,7 +470,7 @@ nyc_census_data_prepped
 
 ## Modelos
 
-En esta sección pasaremos al desarrollo de modelos de predicción, para ello replicamos los modelos de predicción hecho en [Spatial Machine Learning, Justin Morgan Williams](https://justinmorganwilliams.medium.com/spatial-machine-learning-29137dcd1f5f) y además, complementamos con el Capítulo 8 del libro [Analyzing US Census Data - Modeling US Census Data](https://walker-data.com/census-r/modeling-us-census-data.html), capítulo donde se estudian conceptos durante la primera sección como indices de segregación y diversidad los cuales son usados en ciencias sociales para explicar patrones demográficos, en la segunda sección se estudian tópicos en modelamiento estadístico, incluyendo métodos de regresión con atributos espaciales, en donde tomamos en cuenta conceptos como la autocorrelación espacial que está inherente en la mayoría de las variables del censo; en la tercera sección del capítulo se estudian conceptos como clasificación, clusterización y regionalización, que son comunes en técnicas de Machine Learning. Nos enfocamos en particular en la segunda sección del capítulo.
+En esta sección pasaremos al desarrollo de modelos de predicción, para ello replicamos los modelos de predicción hecho en [Spatial Machine Learning, Justin Morgan Williams](https://justinmorganwilliams.medium.com/spatial-machine-learning-29137dcd1f5f) y además, complementamos con el Capítulo 8 del libro [Analyzing US Census Data - Modeling US Census Data](https://walker-data.com/census-r/modeling-us-census-data.html) (Walker K., 2023)[@walker2023a] , capítulo donde se estudian conceptos durante la primera sección como indices de segregación y diversidad los cuales son usados en ciencias sociales para explicar patrones demográficos, en la segunda sección se estudian tópicos en modelamiento estadístico, incluyendo métodos de regresión con atributos espaciales, en donde tomamos en cuenta conceptos como la autocorrelación espacial que está inherente en la mayoría de las variables del censo; en la tercera sección del capítulo se estudian conceptos como clasificación, clusterización y regionalización, que son comunes en técnicas de Machine Learning. Nos enfocamos en particular en la segunda sección del capítulo.
 
 ### Simple Linear Regression
 
@@ -492,12 +493,36 @@ Aquellas variables con mayor p-value son pct_foreign_born, median_age, pop_densi
 
 En la regresión lineal, los errores no son independientes en un modelo con componentes espaciales, esto es porque la autocorrelación espacial está presente en el error, lo que nos dice que el performance del modelo depende de la posición geográfica.
 
-Para saber si este es el fenómeno que se presenta, tomamos en cuenta el Índice de Moran.
+### Spatial data
+
+Lo definimos como un conjunto de observaciones de data espacial (Jiang Z., 2019) [@8444678] 
+$$\{(x(s_i),y(s_i)) | \ i \in \mathbb{N} , 1 \leq i \leq n\}$$ 
+donde $n \in \mathbb{N}$ es la cantidad de muestras, $s_i \in \mathbb{R}^{2 \times 1}$ es un vector de coordenadas espaciales, $x(s_i) \in \mathbb{R}^m$ son las variables explicativas del modelo y $y(s_i) \in \mathbb{R}$ es la respuesta a dichas variables donde nuestra intención es predecir $y$.
+
+Este mismo conjunto también puede ser descrito en formato matricial como $(X,Y) \in \mathbb{R}^{(m+1) \times n}$  donde $X = [x(s_1), x(s_2), \dots, x(s_n)]^{T} \in \mathbb{R}^{m \times n}$ (ya que $x(s_i) \in \mathbb{R}^{m}$) y $Y = [y(s_1), y(s_2), \dots, y(s_n)]^{T} \in \mathbb{R}^{n}$.
+
+Por lo tanto, dado un conjunto de muestras de data espacial, buscamos modelar una función $f$ tal que $Y = f(X)$, una vez que el modelo se entrena, puede usarse para precedir $y(s_i)$ dado $x(s_i)$.
+
+La predicción espacial (Spatial prediction) tiene una cualidad única que la diferencia de la predicción usual en data mining en donde se asume que las muestras son independientes e identicamente distribuidas (i.i.d) y por lo tanto dado un modelo reflejado en la función $f$ podemos usarlo para predecir $y(s) = f(x(s))$ para todo $s$, sin embargo la suposición de que los datos son i.i.d no se cumple bajo la data espacial debido a la relación espacial implícita que existe entre posiciones cercanas en una región.
+
+"Todo se relaciona con todo lo demás, pero las cosas más cercanas se relacionan más que las cosas distantes", primera ley de la geografía (Tobler W.R, 1970) [@tobler1970]
+
+\newpage
+
+### Spatial Autocorrelation
+
+Usando spatial data recolectada, notamos que locaciones cercanas tienden a parecerse entre sí en lugar de ser estadisticamente independientes, llamamos a este fenomeno como efecto de autocorrelación, lo que hace que las muestras nos sean i.i.d, ignorar este factor puede producir modelos menos precisos, por ejemplo cuando aplicamos un modelo de regresión lineal, el error residual esta comunmente correlacionado.
+
+La primera ley de geografía (Tobler W.R, 1970) [@tobler1970] nos indica que en muestras con spatial data, estas no son estadísticamente independientes, si no que se encuentran correlacionadas, en particular sobre locaciones cercanas entre si.
 
 ### Índice de Moran
 
-Estudiamos [@8444678]
-$$I = \frac{N}{W} \sum_{i,j} w_{ij} (x_i - \bar{x}) (x_j - \bar{x})$$
+Definimos el índice de Moran como [@8444678]
+$$I = \frac{\sum_{i=1}^{n} \sum_{j=1}^{n} W_{ij} (y(s_i) - \bar{y})(y(s_j) - \bar{y})}{(\sum_{i=1}^{n} \sum_{j=1}^{n} W_{ij}) \sum _{i=1}^{n} (y(s_i) - \bar{y}) /n }$$
+O de manera equivalente
+
+$$= \frac{n}{W}\frac{\sum_{i=1}^{n} \sum_{j=1}^{n} W_{ij} (y(s_i) - \bar{y})(y(s_j) - \bar{y})}{\sum _{i=1}^{n} (y(s_i) - \bar{y})}$$
+donde $\bar{y} = \sum_{i=1}^{n} y(s_i)/n$ con $n$ el número total de muestras, $W = \sum_{i=1}^{n} \sum_{j=1}^{n} W_{ij}$.
 
 ### Spatial Weights Matrix
 
@@ -510,7 +535,5 @@ nyc_nb <- spdep::poly2nb(nyc_census_data_prepped, queen = TRUE)
 
 ## Referencias
 
-<div id="refs"></div>
-
-
-
+::: {#refs}
+:::
