@@ -57,6 +57,9 @@ library(stats)
 library(grDevices)
 library(dotenv)
 library(sf)
+library(corrr)
+library(spatialreg)
+library(spdep)
 ```
 
 \newpage
@@ -493,11 +496,46 @@ Aquellas variables con mayor p-value son pct_foreign_born, median_age, pop_densi
 
 En la regresión lineal, los errores no son independientes en un modelo con componentes espaciales, esto es porque la autocorrelación espacial está presente en el error, lo que nos dice que el performance del modelo depende de la posición geográfica.
 
+\newpage
+
+Haciendo uso de la librería $\textbf{corrr}$ podemos calcular la matriz de correlaciones [@walker2023a]
+
+```{r, warning=FALSE, message=FALSE}
+library(corrr)
+
+nyc_estimates <- nyc_census_data_prepped %>%
+  select(-GEOID, -median_value, -median_year_built) %>%
+  st_drop_geometry()
+
+correlations <- correlate(nyc_estimates, method = "pearson")
+```
+
+Y lo visualizamos haciendo uso de network_plot()
+
+```{r}
+network_plot(correlations)
+```
+
+\newpage
+
+Nos interesa además los residuos del modelo, pues esperamos que estos sean explicados cuando tomamos en cuenta el fenómeno de spatial autocorrelation , para obtenerlos y añadirlos a nuestra data, seguimos como en la sección 8.3 de Analyzing US Census Data
+
+```{r}
+#Añadimos los residuos a la data que estamos trabajando
+nyc_census_data_prepped$residuals <- residuals(model1)
+
+#Plot
+ggplot(nyc_census_data_prepped, aes(x = residuals)) + 
+  geom_histogram(bins = 100, alpha = 0.5, color = "navy",
+                 fill = "navy") + 
+  theme_minimal()
+```
+
+Usaremos esta variable para realizar posteriormente un Test de Índice de Moran, para ello necesitamos hablar sobre lo que es Spatial data, el fenómeno de Spatial autocorrelation y el índice de Moran.
+
 ### Spatial data
 
-Lo definimos como un conjunto de observaciones de data espacial (Jiang Z., 2019) [@8444678] 
-$$\{(x(s_i),y(s_i)) | \ i \in \mathbb{N} , 1 \leq i \leq n\}$$ 
-donde $n \in \mathbb{N}$ es la cantidad de muestras, $s_i \in \mathbb{R}^{2 \times 1}$ es un vector de coordenadas espaciales, $x(s_i) \in \mathbb{R}^m$ son las variables explicativas del modelo y $y(s_i) \in \mathbb{R}$ es la respuesta a dichas variables donde nuestra intención es predecir $y$.
+Lo definimos como un conjunto de observaciones de data espacial (Jiang Z., 2019) [@8444678] $$\{(x(s_i),y(s_i)) | \ i \in \mathbb{N} , 1 \leq i \leq n\}$$ donde $n \in \mathbb{N}$ es la cantidad de muestras, $s_i \in \mathbb{R}^{2 \times 1}$ es un vector de coordenadas espaciales, $x(s_i) \in \mathbb{R}^m$ son las variables explicativas del modelo y $y(s_i) \in \mathbb{R}$ es la respuesta a dichas variables donde nuestra intención es predecir $y$.
 
 Este mismo conjunto también puede ser descrito en formato matricial como $(X,Y) \in \mathbb{R}^{(m+1) \times n}$  donde $X = [x(s_1), x(s_2), \dots, x(s_n)]^{T} \in \mathbb{R}^{m \times n}$ (ya que $x(s_i) \in \mathbb{R}^{m}$) y $Y = [y(s_1), y(s_2), \dots, y(s_n)]^{T} \in \mathbb{R}^{n}$.
 
@@ -517,19 +555,121 @@ La primera ley de geografía (Tobler W.R, 1970) [@tobler1970] nos indica que en 
 
 ### Índice de Moran
 
-Definimos el índice de Moran como [@8444678]
-$$I = \frac{\sum_{i=1}^{n} \sum_{j=1}^{n} W_{ij} (y(s_i) - \bar{y})(y(s_j) - \bar{y})}{(\sum_{i=1}^{n} \sum_{j=1}^{n} W_{ij}) \sum _{i=1}^{n} (y(s_i) - \bar{y}) /n }$$
-O de manera equivalente
+Definimos el índice de Moran como [@8444678] $$I = \frac{\sum_{i=1}^{n} \sum_{j=1}^{n} W_{ij} (y(s_i) - \bar{y})(y(s_j) - \bar{y})}{(\sum_{i=1}^{n} \sum_{j=1}^{n} W_{ij}) \sum _{i=1}^{n} (y(s_i) - \bar{y}) /n }$$ O de manera equivalente
 
-$$= \frac{n}{W}\frac{\sum_{i=1}^{n} \sum_{j=1}^{n} W_{ij} (y(s_i) - \bar{y})(y(s_j) - \bar{y})}{\sum _{i=1}^{n} (y(s_i) - \bar{y})}$$
-donde $\bar{y} = \sum_{i=1}^{n} y(s_i)/n$ con $n$ el número total de muestras, $W = \sum_{i=1}^{n} \sum_{j=1}^{n} W_{ij}$.
+$$= \frac{n}{W}\frac{\sum_{i=1}^{n} \sum_{j=1}^{n} W_{ij} (y(s_i) - \bar{y})(y(s_j) - \bar{y})}{\sum _{i=1}^{n} (y(s_i) - \bar{y})}$$ donde $\bar{y} = \sum_{i=1}^{n} y(s_i)/n$ con $n$ el número total de muestras, $W = \sum_{i=1}^{n} \sum_{j=1}^{n} W_{ij}$.
+
+Profundizar en esto, nuevos papers
+
+\newpage
 
 ### Spatial Weights Matrix
+
+Seguimos el modelo, para esta parte nos guiamos con el capítulo 7 [Analyzing US Census Data - Spatial analysis with US Census Data](https://walker-data.com/census-r/spatial-analysis-with-us-census-data.html)
+
+Buscamos armar una matriz de pesos, para medir la interacción entre cada tramo censal, para ello generamos una "neighborhood list" en R con el paquete $\textbf{spdep}$ usando la función poly2nb(), esta función nos presenta varias formas de catalogar a los vecinos, para el modelo usaremos
+
+-   $\textit{Contiguity-based neighbors} \rightarrow$ se usa cuando la geometría es tipo polygon, las opciones incluyen neighbors tipo "Queen", que se basa en que todos los polygons que compartan un vértice se consideren vecinos, y neighbors tipo "Rook", en donde deben compartir al menos un segmento de linea para ser vecinos, podemos inferir que neighbors tipo "Queen" abre diagonales de manera que tiene menos entradas iguales a cero
 
 ```{r, results='hide', warning=FALSE, message=FALSE}
 # create neighbor list object
 nyc_nb <- spdep::poly2nb(nyc_census_data_prepped, queen = TRUE)
+nyc_nb
 ```
+
+Interpretamos la información de la siguiente manera
+
+-   Tenemos 1967 distritos censales en NYC (aquellos con valor NA se omiten)
+
+-   El porcentaje de las entradas $w_{i,j}$ tales que $w_{i,j} \neq 0$ es $0.2765$%
+
+-   El número promedio de conexiones entre distritos censales, el promedio de cuantas conexiones posee cada distrito es $5.439756$
+
+-   Existen 5 distritos que no se conectan con nadie.
+
+Podemos hacer un plot de la estructura que posee el objeto "neighborhood list"
+
+Para visualizarlo usamos funciones st\_ descritas en Analyzing US Census.
+
+```{r, results='hide', warning=FALSE, message=FALSE}
+
+# filter for si
+si <- nyc_census_data_prepped[str_detect(nyc_census_data_prepped$NAM, "Richmond"),]
+
+# store geometry of polygons
+si_geom <- st_geometry(si)
+
+# centroid de cada tramo censal
+si_centroids = st_centroid(si_geom)
+si_coordinates = st_coordinates(si_geom)
+
+# create neighbor list
+si_nb_queen <- spdep::poly2nb(si)
+si_nb_rook <- spdep::poly2nb(si, queen=FALSE)
+
+# save plot as jpeg
+jpeg("si_neighborhood_rook_queen.jpg", width = 1000, height = 800)
+
+# set plot structure, 2 plots en la misma imagen
+par(mfrow = c(1,2))
+
+# plot queen
+plot(si_geom,
+     main = "Queen",
+     reset = FALSE,
+     cex.main = 3)
+plot(si_nb_queen, si_centroids,
+     add = TRUE,
+     col = 2,
+     lwd = 1.5)
+
+# plot rook
+plot(si_geom,
+     main = "Rook",
+     reset = FALSE,
+     cex.main = 3)
+plot(si_nb_rook, si_centroids,
+     add = TRUE,
+     col = 2,
+     lwd = 1.5)
+
+# close jpeg
+dev.off()
+
+```
+
+\newpage
+
+Guardada la imagen con las conexiones entre cada distrito censal con los modelos "Queen" y "Rook" procedemos a mostrar los plots.
+
+```{r, echo = FALSE, fig.align = 'center'}
+knitr::include_graphics("si_neighborhood_rook_queen.jpg")
+```
+
+En efecto, observamos la presencia de conexiones diagonales para el modelo "Queen" a diferencia de la estructur de "Rook", así como en ajedrez, la reina puede moverse en todas direcciones, mientras que la torre solo puede moverse en vertical y horizontal. \newpage
+
+# Test de Índice de Moran
+
+Dadas la "neighborhood list" antes dada, podemos usarla para crear una matriz de pesos $W$ usando la función de spdep nb2listw(), además para realizar el test de Índice de Moran, necesitamos ignorar aquellos datos que no posean vecinos, para ello usamos la librería spatialreg para verificar que se tiene activado la opción zero.policy que nos permite ignorar estos datos.
+
+```{r, results='hide', warning=FALSE, message=FALSE}
+# create spatial weights matrix
+library(spatialreg)
+library(spdep)
+set.VerboseOption(TRUE)
+get.VerboseOption()
+set.ZeroPolicyOption(TRUE)
+get.ZeroPolicyOption()
+wts <- spdep::nb2listw(nyc_nb, zero.policy = TRUE)
+```
+
+Y con ella podemos realizar un test de Índice de Moran para observar autocorrelación espacial, para ello hacemos uso de la variable de residuos obtenida en secciones anteriores
+
+```{r}
+# perform Moran's I test 
+spdep::moran.test(nyc_census_data_prepped$residuals, wts)
+```
+Notamos el p-value $< 2.2e-16$ lo que nos habla de la significancia que posee en el modelo
 
 \newpage
 
