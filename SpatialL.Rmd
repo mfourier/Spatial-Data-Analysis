@@ -26,7 +26,7 @@ En $\textit{Analyzing US Census Data - Kyle Walker}$ se muestra como hacer uso d
 
 -   tidycensus : Paquete de R diseñado para facilitar procesos de adquirir y trabajar data de US Census, busca distribuir los datos del censo en un formado compatible con tidyverse, además busca agilizar el proceso del tratado de datos para aquel que esté trabajando en el analisis de datos. [Ch2.](https://walker-data.com/census-r/an-introduction-to-tidycensus.html)
 
--   tidyverse : Colleción de paquetes de R diseñados para la ciencia de datos tales como $\textit{ggplot2}$ para la visualización de data, $\textit{readr}$ para importar y exportar bases de datos, $\textit{tidyr}$ para la remodelación de datos, entre otros. [Ch3.](https://walker-data.com/census-r/wrangling-census-data-with-tidyverse-tools.html)
+-   tidyverse : Coleción de paquetes de R diseñados para la ciencia de datos tales como $\textit{ggplot2}$ para la visualización de data, $\textit{readr}$ para importar y exportar bases de datos, $\textit{tidyr}$ para la remodelación de datos, entre otros. [Ch3.](https://walker-data.com/census-r/wrangling-census-data-with-tidyverse-tools.html)
 
 -   tigris : Paquete de R que busca simplificar procesos para los usuarios de obtención de información y uso de data con atributos geográficos (data espacial, Census geographic dataset), data tipo $\textit{sf}$ (simple features) viene con atributos de geometría (vector data type, tipicamente representados por puntos lineas o poligonos). [Ch5.](https://walker-data.com/census-r/census-geographic-data-and-applications-in-r.html)
 
@@ -98,8 +98,6 @@ Reload del enviroment para poder usar la llave sin tener que resetear R
 readRenviron("~/.Renviron")
 ```
 
-\newpage
-
 ## NY US Census data
 
 Tomamos como caso de prueba al estado de New York, para visualizar el valor medio de las viviendas a nivel de condados, podemos variar el nivel geográfico con el parámetro $\textit{geography}$ (Walker K., 2023) [@walker2023a]
@@ -113,6 +111,8 @@ medianincomenystate <- get_acs(geography = "county",
         variable = "B19013_001" #median income 
         )
 ```
+
+\newpage
 
 ### Tidycensus, funciones principales para obtener data
 
@@ -471,7 +471,7 @@ nyc_census_data_prepped
 
 \newpage
 
-## Modelos
+## Modelo SLR y Spatial Autocorrelation
 
 En esta sección pasaremos al desarrollo de modelos de predicción, para ello replicamos los modelos de predicción hecho en [Spatial Machine Learning, Justin Morgan Williams](https://justinmorganwilliams.medium.com/spatial-machine-learning-29137dcd1f5f) y además, complementamos con el Capítulo 8 del libro [Analyzing US Census Data - Modeling US Census Data](https://walker-data.com/census-r/modeling-us-census-data.html) (Walker K., 2023)[@walker2023a] , capítulo donde se estudian conceptos durante la primera sección como indices de segregación y diversidad los cuales son usados en ciencias sociales para explicar patrones demográficos, en la segunda sección se estudian tópicos en modelamiento estadístico, incluyendo métodos de regresión con atributos espaciales, en donde tomamos en cuenta conceptos como la autocorrelación espacial que está inherente en la mayoría de las variables del censo; en la tercera sección del capítulo se estudian conceptos como clasificación, clusterización y regionalización, que son comunes en técnicas de Machine Learning. Nos enfocamos en particular en la segunda sección del capítulo.
 
@@ -533,6 +533,8 @@ ggplot(nyc_census_data_prepped, aes(x = residuals)) +
 
 Usaremos esta variable para realizar posteriormente un Test de Índice de Moran, para ello necesitamos hablar sobre lo que es Spatial data, el fenómeno de Spatial autocorrelation y el índice de Moran.
 
+\newpage
+
 ### Spatial data
 
 Lo definimos como un conjunto de observaciones de data espacial (Jiang Z., 2019) [@8444678] $$\{(x(s_i),y(s_i)) | \ i \in \mathbb{N} , 1 \leq i \leq n\}$$ donde $n \in \mathbb{N}$ es la cantidad de muestras, $s_i \in \mathbb{R}^{2 \times 1}$ es un vector de coordenadas espaciales, $x(s_i) \in \mathbb{R}^m$ son las variables explicativas del modelo y $y(s_i) \in \mathbb{R}$ es la respuesta a dichas variables donde nuestra intención es predecir $y$.
@@ -545,21 +547,147 @@ La predicción espacial (Spatial prediction) tiene una cualidad única que la di
 
 "Todo se relaciona con todo lo demás, pero las cosas más cercanas se relacionan más que las cosas distantes", primera ley de la geografía (Tobler W.R, 1970) [@tobler1970]
 
-\newpage
-
 ### Spatial Autocorrelation
 
-Usando spatial data recolectada, notamos que locaciones cercanas tienden a parecerse entre sí en lugar de ser estadisticamente independientes, llamamos a este fenomeno como efecto de autocorrelación, lo que hace que las muestras nos sean i.i.d, ignorar este factor puede producir modelos menos precisos, por ejemplo cuando aplicamos un modelo de regresión lineal, el error residual esta comunmente correlacionado.
+Usando spatial data recolectada, notamos que locaciones cercanas tienden a parecerse entre sí en lugar de ser estadísticamente independientes, llamamos a este fenomeno como efecto de autocorrelación, lo que hace que las muestras nos sean i.i.d, ignorar este factor puede producir modelos menos precisos, por ejemplo cuando aplicamos un modelo de regresión lineal, el error residual esta comunmente correlacionado.
 
-La primera ley de geografía (Tobler W.R, 1970) [@tobler1970] nos indica que en muestras con spatial data, estas no son estadísticamente independientes, si no que se encuentran correlacionadas, en particular sobre locaciones cercanas entre si.
+La primera ley de geografía (Tobler W.R, 1970) [@tobler1970] nos indica que en muestras con spatial data, estas no son estadísticamente independientes, si no que se encuentran correlacionadas, en particular sobre locaciones cercanas entre sí.
+
+\newpage
 
 ### Índice de Moran
 
-Definimos el índice de Moran como [@8444678] $$I = \frac{\sum_{i=1}^{n} \sum_{j=1}^{n} W_{ij} (y(s_i) - \bar{y})(y(s_j) - \bar{y})}{(\sum_{i=1}^{n} \sum_{j=1}^{n} W_{ij}) \sum _{i=1}^{n} (y(s_i) - \bar{y}) /n }$$ O de manera equivalente
+Para trabajar el problema de la autocorrelación espacial [@8444678] hacemos uso del índice de Moran el cual el cual nos entrega una medida de como se comporta este fenómeno dado n observaciones de una variable, el índice de Moran es una auto-covarianza espacial estandarizada [@chen2013].
 
-$$= \frac{n}{W}\frac{\sum_{i=1}^{n} \sum_{j=1}^{n} W_{ij} (y(s_i) - \bar{y})(y(s_j) - \bar{y})}{\sum _{i=1}^{n} (y(s_i) - \bar{y})}$$ donde $\bar{y} = \sum_{i=1}^{n} y(s_i)/n$ con $n$ el número total de muestras, $W = \sum_{i=1}^{n} \sum_{j=1}^{n} W_{ij}$.
+Definimos el índice de Moran como $$I = \frac{\sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij} (y(s_i) - \bar{y})(y(s_j) - \bar{y})}{(\sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij}) \sum _{i=1}^{n} (y(s_i) - \bar{y})^2 /n }$$
 
-Profundizar en esto, nuevos papers
+O de manera equivalente
+
+$$= \frac{n}{W}\frac{\sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij} (y(s_i) - \bar{y})(y(s_j) - \bar{y})}{\sum _{i=1}^{n} (y(s_i) - \bar{y})^2}$$ donde $\bar{y} = \sum_{i=1}^{n} y(s_i)/n$ con $n$ el número total de muestras, a partir de ahora, para simplificar la notación, $y(s_i) = y_i$, además $W = \sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij}$, y abusando de la notación, $W = (w_{ij})_{i,j = 1}^{n}$, que consideramos como una matriz de pesos.
+
+Veamos que, bajo ciertas condiciones de la matriz $W$, se tiene que $I \in [-1,1]$, en (Chen, Y. 2022)[@chen2022] tenemos una demostración de que el índice de Moran toma dichos valores cuando $W$ clasifica como "globally normalized wight matrix", pero no entra en detalles, además, se estudia que en la práctica muy típicamente para estas matrices, $I \in (-1,1)$, en el [manual de PQStat](https://manuals.pqstat.pl/en:przestrzenpl:mwagpl) se habla de "Spatial weights matrix" como una matriz con coeficientes positivos y filas estandarizadas de manera las filas sumen uno, esto es $\sum_{j=1}^{n} w_{ij} = 1 \ \ \forall i \in \{1,\dots,n\}$ ($\textit{row-normalized}$).
+
+En la discusión ["Why is Moran's I coming out greater than 1" - StackExchange](https://stats.stackexchange.com/questions/160459/why-is-morans-i-coming-out-greater-than-1) se muestra un contraejemplo de matriz $W$ cuya suma de las entradas es $\sum_{i,j}^{n} w_{ij} = 1$ y para muestras $(X_1,\dots,X_4)$ sucede $I = 3$, por lo que si $W$ no cumple la propiedad de ser $row-normalize$, no se puede saber a primeras los valores que puede tomar $I$, y por tanto, no tenemos una referencia clara de la significancia que pueda tener la magnitud de $I$ en el modelo si no conocemos sus valores máximos y mínimos.
+
+Veremos que se puede relajar la condición de que la suma de las filas sean todas iguales a $1$ y pediremos que la suma de las filas sea un número $\alpha$ para cada fila, trabajaremos entonces con matrices de pesos estandarizadas que son las adecuadas para un modelo de autocorrelación
+
+\newpage
+
+Presentamos una demostración en la que no usaremos técnicas de cálculo ni de optimización para probar que para $W$ una matriz de pesos estandarizada, tenemos que $I \in [-1,1]$
+
+Entenderemos por matriz de pesos estandarizada aquella que cumple las siguientes propiedades
+
+-   Supondremos $w_{ij} \geq 0 \ \  \forall i,j \in \{1, \dots, n\}$, pues w_{ij} es una magnitud de la influencia que hay entre los vecinos $i$ y $j$
+
+-   Típicamente, $w_{ii} = 0 \ \ \forall i \in \{1, \dots, n\}$, pues el hecho de tener que un punto tenga influencia con el mismo puede generar ruido en el modelo
+
+-   Suponemos que la influencia que tiene $y_{i}$ sobre $y_{j}$ es la misma que la de $y_{j}$ sobre $y_{i}$, esto es, $w_{ij} = w_{ji} \ \ \forall i,j \in \{1, \dots, n\}$, es decir, $W$ es simétrica
+
+-   \textit{Row-normalized:} Para cada $i \in \{1,\dots,n\}$ se tiene que $\sum_{j=1}^{n} w_{ij} = \alpha$ para algún $\alpha \in \mathbb{R}$, esto pues, entendemos la suma $\sum_{j=1}^{n} w_{ij}$ como la influencia total que existe entre el vecino $i$ y todos sus vecinos $j$, por lo que pedimos que la influencia total sea la misma para cada vecino $i \in \{1,\dots,n\}$, de manera que el nivel de influencia esté estandarizado para cada vecino.
+
+\newpage
+
+Haremos uso de los siguientes resultados conocidos
+
+-   $\textbf{Teorema:}$ Sea $A$ una matriz cuadrada simétrica a coeficientes reales, tenemos que $A$ es ortogonalmente diagonalizable, es decir, podemos escribir $A = PDP^{T}$, con $P$ matriz ortogonal cuyos vectores columna son los vectores propios de $A$ y $D$ es matriz diagonal con $(d_{ii})_{i=1}^{n} = (\lambda_{i})_{i=1}^{n}$ valores propios de $A$
+
+-   $\textbf{Lema:}$ Si $P$ es ortogonal, entonces $P^T = P^{-1}$ y además, $P$ es una isometría en $(\mathbb{R}^{n} , || \cdot ||_{2})$, es decir, $||Pw||_{2} = ||w||_{2}$ $\ \ \forall w \in \mathbb{R}^{n}$
+
+Con ello, podemos probar el siguiente teorema
+
+-   $\textbf{Teorema:}$ Se tiene que el operador $\lambda_{max}: S^n \rightarrow \mathbb{R}$ , que asocia a cada $A \in S^n$ matriz simétrica su mayor valor propio $\lambda_{max} (A)$, es convexa, más aún, $\lambda_{max}(A) = \sup_{||v||=1} v^{T}Av$ supremo de funcionales lineales sobre $S^n$.
+
+Además haremos uso del siguiente lema
+
+-   $\textbf{Lema:}$ El mayor valor propio de una matriz $A$ con coeficientes no negativos está acotada por la mayor suma de las filas, esto es, $\lambda_{max} (A) \leq \max_{i} \sum_{j=1}^{n}a_{ij}$.
+
+- $\textbf{Demostración del lema}$: Sea $\lambda$ un valor propio de una matriz $A$ no negativa asociada a un vector $x$, tenemos entonces que 
+
+$$Ax=\lambda x \implies \lambda |x_i| = |\sum_{j=1}^{n}a_{ij}x_j| \ \ \forall i \in \{1,\dots,n\}$$
+$$\implies \lambda |x_i| = |\sum_{j=1}^{n}a_{ij}x_j| \leq (\sum_{j=1}^{n} |a_{ij}|) \max_{j} |x_j| \ \ \forall i \in \{1,\dots,n\}$$
+
+Usando que $a_{ij} \geq 0 \ \ \forall i,j \in \{1,\dots,n\}$ y que la desigualdad se cumple para todo $i$ tenemos
+
+$$\lambda \max_{i} |x_i| \leq \max_{i} (\sum_{j=1}^{n} a_{ij} \max_j |x_j|) = \max_{i}(\sum_{j=1}^{n} a_{ij}) \max_{j} |x_j|$$
+
+$$\implies \lambda \leq \max_{i} (\sum_{j=1}^{n} a_{ij})$$
+
+Como $\lambda$ era arbitrario deducimos que 
+
+$$\lambda_{max}(A) \leq \max_{i}(\sum_{j=1}^{n} a_{ij})$$
+
+\newpage
+
+Enunciamos entonces
+
+* $\textbf{Propiedad:}$ Para $I= \frac{n}{W}\frac{\sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij} (y_i - \bar{y})(y_j - \bar{y})}{\sum _{i=1}^{n} (y_i - \bar{y})}$ donde $\bar{y} = \sum_{i=1}^{n} y_i/n$ con $W$ matriz de pesos estandarizada e $y \in \mathbb{R}^{n}$, se cumple que $I \in [-1,1]$.
+
+* $\textbf{Demostración:}$ Consideremos el operador $\Phi : \mathbb{R}^{n} \rightarrow \partial B(0,1)$ definido por $\Phi(y) = z =(z_i)_{i=1}^{n} = (\frac{(y_i - \bar{y})}{\sqrt(\sum_{i=1}^{n}(y_i - \bar{y})^{2})})_{i=1}^{n}$
+
+Está bien definida pues $\forall y \in \mathbb{R}^n$
+
+$$||\Phi(y)||_{2} = ||z||_{2} = \sum_{i=1}^{n} |z_i|^2 = \sum_{i=1}^{n} \frac{(y_i - \bar{y})^2}{\sum_{i=1}^{n} (y_i - \bar{y})^2}$$ 
+
+$$= \frac{\sum_{i=1}^{n} (y_i - \bar{y})^2}{\sum_{i=1}^{n} (y_i - \bar{y})^2} = 1$$
+
+Notamos que
+
+$$I = \frac{n\sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij}(y_i - \bar{y})(y_j - \bar{y}))}{W (\sum_{i=1}^{n} (y_i - \bar{y})^2)}$$
+
+$$= \frac{n}{W} \sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij} \frac{(y_i - \bar{y})(y_j - \bar{y})}{\sqrt{\sum_{i=1}^{n}(y_i - \bar{y})^2} \sqrt{\sum_{i=1}^{n}(y_i - \bar{y})^2}}$$
+
+$$\frac{n}{W} \sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij} \Phi (y_i) \Phi (y_j) = \frac{n}{W} \sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij} z_i z_j$$
+
+Definimos $V = (\frac{w_{ij}}{W})_{i,j}^{n}$ matriz normalizada tal que $\sum_{i,j} v_{ij} = 1$, además, como W es matriz de pesos estandarizada, tenemos que $V$ también lo es, por lo que es simétrica, no negativa, y row-normalized.
+
+Entonces, recordando que $||z||_{2} = 1$
+
+$$I = n(z^{T}Vz) \leq n \sup_{||z||=1} z^{T}Vz = n\lambda_{max}(V)$$
+
+$$\implies |I| \leq n |\lambda_{max}(V)| \leq n |\max_{i}(\sum_{j=1}^{n} v_{ij})| \leq n \max_{i} (\sum_{j=1}^{n}|v_{ij}|)$$
+
+Por un lado, tenemos que $|v_{ij}| = v_{ij}$ y como $\sum_{i=1}^{n} \sum_{j=1}^{n} v_{ij} = 1$ y $V$ es $\textit{row-normalized}$ tenemos que se cumple $\sum_{j=1}^{n} v_{ij} = \frac{1}{n} \ \ \forall i \in \{1,\dots,n\}$, y por lo tanto
+
+$$\implies |I| \leq n\max_{i}(\sum_{j=1}^{n} v_{ij}) = n *\frac{1}{n} = 1$$
+
+$$\implies I \in [-1,1]$$
+
+\newpage
+
+En caso de que $W$ no cumpla la propiedad $\textit{row-normalized}$ de igual manera podemos encontrar una cota para $I$ y esta es $I \in [-n,n]$ donde $n$ es la cantidad total de datos haciendo uso de la desigualdad de Schur [@ikramov1994] que nos dice
+
+* $\textbf{Teorema:}$ Sea $A$ una matriz $n \times n$ con valores propios $(\lambda_1,\dots,\lambda_n)$, entonces se cumple
+
+$$\sum_{i=1}^{n} |\lambda_i|^{p} \leq \sum_{i,j = 1}^{n} |a_{ij}|^{p} \ \ , 1 \leq p <2$$
+
+Luego, como vimos antes, tenemos ahora $V$ una matriz normalizada, pero no necesariamente $\textit{row-normalized}$, luego
+
+$$I = n (z^{T}Vz)$$
+Y como $V$ es simétrica, la escribimos como $V=P^TDP$ usando el teorema espectral, y como $P$ es ortogonal, entonces $x = Pz$ tiene norma $||Pz||_{2} = ||x||_{2} = 1$, en particular $|x_i|^2 \leq 1 \ \ \forall i \in \{1,\dots,n\}$ luego
+
+$$I = n(z^TP^T D Pz) = n(x^TDx) = n \sum_{i=1}^{n} \lambda_{i}(V) |x_{i}|^2$$
+$$\implies |I| \leq n \sum_{i=1}^{n} |\lambda_i (V)| \leq n \sum_{{i,j = 1}}^{n} |v_{ij}| = n $$
+$$\implies I \in [-n,n]$$
+
+Sin embargo, usaremos matrices de peso estandarizadas pues son las que mejor se ajustan al modelo, y donde sabemos que el índice de Moran se mueve entre $[-1,1]$.
+
+Si sabemos el intervalo en el que se mueve $I$ para nuestro modelo, podemos saber que tan significativo es el valor, y por lo tanto que tan presente esta el fenómeno de autocorrelación espacial.
+
+Comentando sobre el significado de este valor, al igual que la correlación, en donde vemos la relación entre 2 variables de entrada cuando vemos el cambio que tienen respecto de una variable de respuesta, la autocorrelación es similar pero la variable de respuesta es la misma variable de entrada [(Fuente)](https://www.statisticshowto.com/morans-i/).
+
+\newpage
+
+El índice de Moran mide que tan similar es una variable respecto de las variables cercanas, por ejemplo, si este se acerca a $-1$ nos dice que cada variable tiende a tener valores distinto de sus alrededores, y caso contrario si se acerca a $1$, resumiendo
+
+* $I \approx -1 \rightarrow$ Se clusterizan valores distintos entre sí (dispersión perfecta)
+
+* $I \approx 0 \rightarrow$ No existe autocorrelación espacial (podemos pensar que los datos son independientes identicamente distribuidos en el espacio)
+
+* $I \approx 1 \rightarrow$ Se clusterizan valores similares entre sí
+
+```{r, echo = FALSE, fig.align = 'center'}
+knitr::include_graphics("moranindex.jpg")
+```
 
 \newpage
 
@@ -588,6 +716,8 @@ Interpretamos la información de la siguiente manera
 -   Existen 5 distritos que no se conectan con nadie.
 
 Podemos hacer un plot de la estructura que posee el objeto "neighborhood list"
+
+\newpage
 
 Para visualizarlo usamos funciones st\_ descritas en Analyzing US Census.
 
@@ -648,7 +778,7 @@ knitr::include_graphics("si_neighborhood_rook_queen.jpg")
 
 En efecto, observamos la presencia de conexiones diagonales para el modelo "Queen" a diferencia de la estructur de "Rook", así como en ajedrez, la reina puede moverse en todas direcciones, mientras que la torre solo puede moverse en vertical y horizontal. \newpage
 
-# Test de Índice de Moran
+### Test de Índice de Moran
 
 Dadas la "neighborhood list" antes dada, podemos usarla para crear una matriz de pesos $W$ usando la función de spdep nb2listw(), además para realizar el test de Índice de Moran, necesitamos ignorar aquellos datos que no posean vecinos, para ello usamos la librería spatialreg para verificar que se tiene activado la opción zero.policy que nos permite ignorar estos datos.
 
@@ -669,7 +799,45 @@ Y con ella podemos realizar un test de Índice de Moran para observar autocorrel
 # perform Moran's I test 
 spdep::moran.test(nyc_census_data_prepped$residuals, wts)
 ```
+
 Notamos el p-value $< 2.2e-16$ lo que nos habla de la significancia que posee en el modelo
+
+Además, vemos que el índice de Moran tiene un valor positivo, lo que nos dice que en el mapa, distritos censales con atributos similares tienden a agruparse (clusters).
+
+En efecto, podemos apreciar como en NYC, con la variable "Median Home Value" se forman agrupaciones de distritos en ciertos sectores del estado que comparten la cualidad de tener un alto valor de la vivienda, y a su vez, otros sectores con distritos que comparten tener un bajo nivel de la vivienda.
+
+Un índice de Moran de $I = 0.3232$ es estadísticamente significativo (Walker K., 1970)[@walker2023a]
+
+\newpage
+
+Observamos los residuos, hacemos uso de la función lag.listw() la cual nos toma en cuenta los residuos del modelo junto a la matriz de peso que estamos añadiendo.
+
+```{r, warning=FALSE, message=FALSE}
+# get lagged version of residuals for plot
+nyc_census_data_prepped$lagged_residuals <- 
+lag.listw(wts, nyc_census_data_prepped$residuals)
+
+# plot
+(morans_i_res <- nyc_census_data_prepped %>% 
+ggplot(aes(x = residuals, y = lagged_residuals)) + 
+  theme_minimal() + 
+  geom_point(alpha = 0.5) + 
+  geom_smooth(method = "lm", color = "red"))
+
+# save image
+ggsave("image/morans_i_res.png",
+       plot = morans_i_res)
+```
+
+El plot muestra una correlación positiva entre el fenómeno de autocorrelación espacial y los residuos, lo que sugiere rechazar la independencia en los términos del error pues existe autocorrelación espacial en los residuos.
+
+Para trabajar este problema, tenemos métodos para tratar con regresión espacial
+
+\newpage
+
+## Spatial Regression Model
+
+### Simultaneous Autoregressive (SAR) models
 
 \newpage
 
