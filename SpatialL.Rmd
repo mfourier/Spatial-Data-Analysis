@@ -1094,7 +1094,7 @@ nyc_gw_model
 
 Utilizaremos la función spgwr gwr() para comparar una GWR con la versión del GWmodel. Aquí, si pasamos a la función un objeto sp, no necesitamos pasarle coordenadas.
 
-```{r}
+```{r, results='hide', message=FALSE}
 library(spgwr)
 
 # choose bandwidth
@@ -1215,6 +1215,8 @@ Podemos ver el $R^2$ global del modelo, el cual es peor que los modelos anterior
 grf_model$Global.Model$r.squared
 ```
 
+\newpage
+
 Visualizamos el desempeño con el R2 local
 
 ```{r}
@@ -1235,7 +1237,10 @@ nyc_grf
 
 \newpage
 
-```{r, message=FALSE, results='hide'}
+### Comparación de R2 Local en modelos GWR y GRF
+
+Usamos ggplot para visualizar los 3 modelos sobre el mismo mapa y bajo la misma escala de colores
+```{r, message=FALSE}
 library(ggthemes)
 # pivot then plot
 (ggplot_comp_loc_r2 <- nyc_census_data_prepped_sp %>% 
@@ -1265,13 +1270,15 @@ print(ggplot_comp_loc_r2)
 dev.off()
 ```
 
+Podemos ver que la versión GWR del paquete GWmodel tiene, con diferencia, las puntuaciones R2 locales más altas las alcanza el paquete GWModel seguido por el paquete spgwr (GWR) y finalmente SpatialML (GRF)
+
 \newpage
 
-```{r, echo = FALSE, fig.align = 'center', out.width="100%"}
-knitr::include_graphics("image/localR2GWM.png")
-```
+### Conclusiones
 
-Podemos ver que la versión GWR del paquete GWmodel tiene, con diferencia, las puntuaciones R2 locales más altas
+Respecto de las aplicaciones de los distintos modelos para la predicción espacial, los modelos basados en SAR tienen mejores puntuaciones R2 que el modelo de regresión lineal simple. En este caso, los erroresarlm() obtuvieron la puntuación más alta. Los modelos basados en GWR, que ajustan un modelo lineal a cada ubicación de datos, tienen valores R2 globales más altos que los modelos basados en SAR. El único modelo basado en GRF (SpatialML) obtuvo una puntuación menor que los modelos basados en GWR, pero estuvo a la par con los modelos basados en SAR.
+
+Se acompañan el experimento con documentación relacionada a la predicción usando data espacial, y los problemas que conlleva y las herramientas matemáticas ocupadas en el modelo.
 
 \newpage
 
