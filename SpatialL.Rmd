@@ -1029,7 +1029,7 @@ Para más información respecto de las librerías, consultar [Analyzing US Censu
 
 \newpage
 
-## Activacion API key
+## Anexo 2: Activacion API key
 
 Para hacer uso de la data que nos proporciona el paquete tidycensus debemos hacer uso de una $\textit{key}$ que nos permita el acceso a la información.
 
@@ -1067,7 +1067,7 @@ readRenviron("~/.Renviron")
 
 \newpage
 
-## Anexo 2: Uso de librerías ggplot2 y tmap para plots con referencias geográficas
+## Anexo 3: Uso de librerías ggplot2 y tmap para plots con referencias geográficas
 
 Dada la naturaleza del problema de predicción georeferenciada, nos interesa visualizar la data junto a su componente espacial, a continuación se presenta un breve manual de uso de las librerías $\textit{ggplot2}$ y $\textit{tmap}$ para visualizar los datos acompañados de sus referencias geográficas, los cuales en R se codifican como objetos tipo \textit{polygon}, usando un ejemplo con datos provenientes de NYC.
 
@@ -1227,7 +1227,7 @@ tm_shape(medianincomenyc) +
 
 \newpage
 
-## Anexo 3: Discusión sobre el índice de Moran
+## Anexo 4: Discusión sobre el índice de Moran
 
 Veamos que, bajo ciertas condiciones de la matriz $W$, se tiene que $I \in [-1,1]$, en (Chen, Y. 2022)[@chen2022] tenemos una demostración de que el índice de Moran toma dichos valores cuando $W$ clasifica como "globally normalized wight matrix", pero no entra en detalles, además, se estudia que en la práctica muy típicamente para estas matrices, $I \in (-1,1)$, en el [manual de PQStat](https://manuals.pqstat.pl/en:przestrzenpl:mwagpl) se habla de "Spatial weights matrix" como una matriz con coeficientes positivos y filas estandarizadas de manera las filas sumen uno, esto es $\sum_{j=1}^{n} w_{ij} = 1 \ \ \forall i \in \{1,\dots,n\}$ ($\textit{row-normalized}$).
 
