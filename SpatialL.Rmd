@@ -41,7 +41,19 @@ library(ggthemes)
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-El presente documento se enfoca en el desarrollo de modelos de predicción de precios de viviendas mediante el uso de datos georreferenciados sobre los cuales aplicaremos técnicas centradas en datos espaciales y modelos de regresión adaptados para tratar la dependencia espacial que poseen estos mismos. Se hace uso del lenguaje de programación R para simulaciones, y se tomó como referencia el libro [Analyzing US Census Data - Kyle Walker (2023)](https://walker-data.com/census-r/), para obtener y manipular los datos usados en el modelo. El objetivo es predecir el precio de las viviendas en una determinada ubicación utilizando datos que a su vez poseen una componente espacial, sin embargo, su uso trae consigo otros desafíos que debemos enfrentar, tales como la autocorrelación espacial de los datos, la heterogeneidad espacial, entre otros fenómenos que expondremos los cuales afectan suposiciones clásicas que se toman en modelos más simples de regresión, como puede ser la identica e independiente distribución de los datos o la homocedasticidad de estos. La combinación de estos conceptos permite obtener modelos precisos y útiles para la toma de decisiones, como puede ser su uso para modelos del mercado inmobiliario.
+El presente documento se enfoca en el desarrollo de modelos de predicción de precios de viviendas mediante el uso de datos georreferenciados sobre los cuales aplicaremos técnicas centradas en datos espaciales y modelos de regresión adaptados para tratar la dependencia espacial que poseen estos mismos. Se hace uso del lenguaje de programación R para simulaciones, y se tomó como referencia el libro [Analyzing US Census Data - Kyle Walker (2023)](https://walker-data.com/census-r/), para obtener y manipular los datos usados en el modelo. El objetivo es predecir el precio de las viviendas en una determinada ubicación utilizando datos que a su vez poseen una componente espacial, sin embargo, su uso trae consigo otros desafíos que debemos enfrentar, tales como la autocorrelación espacial de los datos, la heterogeneidad espacial, entre otros fenómenos que expondremos, los cuales afectan suposiciones clásicas que se toman en modelos más simples de predicción, como puede ser la identica e independiente distribución de los datos o la homocedasticidad de estos. La combinación de estos conceptos permite obtener modelos precisos y útiles para la toma de decisiones, como puede ser su uso para modelos del mercado inmobiliario.
+
+En el contexto de datos espaciales [@8444678], trabajamos con un conjunto de observaciones de datos asociados con una componente espacial $\{(x(s_i),y(s_i)) | \ i \in \mathbb{N} , 1 \leq i \leq n\}$ donde $n \in \mathbb{N}$ es la cantidad de muestras, $s_i \in \mathbb{R}^{2}$ es un vector de coordenadas espaciales, $x(s_i) \in \mathbb{R}^m$ son las variables explicativas del modelo y $y(s_i) \in \mathbb{R}$ es la respuesta a dichas variables.
+
+Este mismo conjunto también puede ser descrito en formato matricial como $(X,Y) \in \mathbb{R}^{(m+1) \times n}$ donde $X = [x(s_1), x(s_2), \dots, x(s_n)]^{T} \in \mathbb{R}^{m \times n}$, ya que $x(s_i) \in \mathbb{R}^{m}$ e $Y = [y(s_1), y(s_2), \dots, y(s_n)]^{T} \in \mathbb{R}^{n}$.
+
+El problema de la predicción consiste en que, dado un conjunto de muestras de data espacial, buscamos modelar una función $f$ tal que $Y = f(X)$, una vez que el modelo se entrena, puede usarse para precedir la respuesta $y$ en otra locación dado las variables explicativas.
+
+La predicción espacial tiene una cualidad diferenciadora de la predicción usual, esto pues, en este último se asume que las muestras son independientes e identicamente distribuidas (i.i.d) y por lo tanto, dado un modelo reflejado en la función $f$ podemos usarlo para predecir $y(s) = f(x(s))$ para todo $s$, sin embargo, la suposición de que los datos son i.i.d no se cumple bajo la data espacial, esto debido a la relación implícita que existe entre posiciones cercanas en una región.
+
+Acorde a la primera ley de la geografía de Tobler W.R: "Todo se relaciona con todo lo demás, pero las cosas más cercanas se relacionan más que las cosas distantes" [@tobler1970], este fenómeno se conoce como autocorrelación espacial, e ignorarlo puede afectar la precisión de modelos que tengan el supuesto de una muestra i.i.d, pues perdemos esta propiedad sobre los datos.
+
+\newpage
 
 En $\textit{Analyzing US Census Data - Kyle Walker}$ se muestra como hacer uso de las librerías, entre ellas:
 
@@ -108,19 +120,17 @@ Si no se toman en cuenta, pueden tener efecto en la predicción de Machine Learn
 Importamos data de NYC US Census con $\textit{tidycensus}$
 
 ```{r, results='hide', warning=FALSE, message=FALSE}
-#load package
+#package
 library(dotenv)
 library(sf)
 library(tidycensus)
 library(dplyr)
 
-# set county variables, condados que forman NYC
+# Variable: Condados que forman NYC
 nyc_counties <- c("Bronx","Kings","New York","Queens","Richmond")
 
-# set list of census variables 
-
-# variable list
-variables <- c(
+# Lista de regresores a utilizar
+variables_to_get <- c(
   median_value = "B25077_001",
   median_rooms = "B25018_001",
   median_income = "DP03_0062",
@@ -132,7 +142,6 @@ variables <- c(
   pct_black = "DP05_0078P",
   pct_hispanic = "DP05_0070P",
   pct_asian = "DP05_0080P",
-  median_year_built = "B25037_001",
   percent_ooh = "DP04_0046P"
 )
 ```
@@ -144,10 +153,10 @@ variables <- c(
 Llamamos las variables antes definidas, en los condados que forman NYC usando get_acs()
 
 ```{r, results='hide', warning=FALSE, message=FALSE}
-# get acs data y transforma a tipo NYC EPSG
-nyc_census_data <- get_acs(
+# Obtiene acs data y transforma a tipo NYC EPSG
+nyc_data <- get_acs(
   geography = "tract",
-  variables = variables,
+  variables = variables_to_get,
   state = "NY",
   county = nyc_counties,
   geometry = TRUE,
@@ -191,7 +200,7 @@ Nuestra variable dependiente será el valor promedio de la vivienda en NYC.
 ```{r, results='hide', warning=FALSE, message=FALSE}
 
 # plot tmap
-(nyc_median_value_hist_tm <- nyc_census_data[!st_is_empty(nyc_census_data),,drop=F] %>% 
+(nyc_median_value_hist_tm <- nyc_data[!st_is_empty(nyc_data),,drop=F] %>% 
 tm_shape() +
   tm_polygons(col = "median_valueE",
           palette = "cividis",
@@ -220,9 +229,11 @@ Creamos la nueva variable tomando la raiz cuadrada de la variable dependiente me
 
 ```{r, results='hide', warning=FALSE, message=FALSE}
 
-# create plot
-(nyc_median_value_sqrt_hist_tm <- nyc_census_data[!st_is_empty(nyc_census_data),,drop=F] %>% #limpiamos datos vacios
-   mutate(sqrt_med_value = sqrt(median_valueE)) %>% #variable_sqrt
+# Create plot
+(nyc_median_value_sqrt_hist_tm <- nyc_data[!st_is_empty(nyc_data),,drop=F] %>%
+   
+# Limpiamos datos vacios
+mutate(sqrt_med_value = sqrt(median_valueE)) %>% #variable_sqrt
 tm_shape() +
   tm_polygons(col = "sqrt_med_value",
           palette = "cividis",
@@ -247,44 +258,26 @@ Debemos borrar aquellas variables con data NA, y eliminar columnas con informaci
 
 -   pop_density $\rightarrow$ mide densidad de población por metros cuadrados
 
--   median_structure_age $\rightarrow$ resta 2020 de median_year_built
-
 ```{r, warning=FALSE, message=FALSE}
-# load packages
-#library(dplyr)
-#library(stringr)
-#library(units)
-#library(stats)
+#packages
+library(dplyr)
+library(stringr)
+library(units)
+library(stats)
 
-# prep data for model
-nyc_census_data_prepped <- nyc_census_data %>% 
+# Preparando la data
+nyc_data_prepped <- nyc_data %>% 
   mutate(pop_density = as.numeric(set_units(total_populationE / st_area(.),
- "1/km2")),
-         median_structure_age = 2020 - median_year_builtE) %>% 
-  select(!ends_with("M")) %>% # drop margin of error cols
-  rename_with(.fn = ~str_remove(.x, "E$")) %>% # remove E from col name
-  na.omit() # omit NA
+ "1/km2"))) %>% 
+  select(!ends_with("M")) %>% # Eliminamos columnas de margen de error
+  rename_with(.fn = ~str_remove(.x, "E$")) %>% 
+  na.omit() # Elimina valores NA
 
-#Al parecer, entregan malos test debido a valor 0 en columna median_year_built
-
-#Despues de realizar pruebas, se confirma que esta columna bugueada ensucia la data
-#nyc_census_data_prepped <- filter(nyc_census_data_prepped, median_year_built != 0)
-#Probamos manteniendo mas data pero eliminando las variables median_year_built
-nyc_census_data_prepped <- nyc_census_data_prepped[ , !names(nyc_census_data_prepped) %in% 
-    c("median_year_built","median_structure_age")]
 ```
 
 \newpage
 
-$\textbf{Nota}:$ La variable median_year_built posee alrededor de 800 filas en las que toma valor cero, esto ensucia la data median_structure_age, pues hace que permita que existan viviendas con tiempo promedio de construcción de 40 años, como viviendas con tiempo promedio de construccion de 2000 años, lo que es absurdo, se probó el modelo usando alrededor de 1100 datos con esta variable limpia, y por otro lado se probó con los 1967 datos sin hacer uso de esta variable. Los resultados que se adecuan más a la teoría expuesta en Analyzing US Census se dieron cuando no se toma en cuenta esta variable median_year_built y median_structure_age.
-
-```{r, echo = FALSE, fig.align = 'center', out.width="100%"}
-knitr::include_graphics("image/median_year.png")
-```
-
-En las siguientes secciones se obtienen resultados distintos que en [Spatial Machine Learning - J. Morgan](https://justinmorganwilliams.medium.com/spatial-machine-learning-29137dcd1f5f) debido a este cambio, pues trabajaremos con menos datos, pero con una variable que no hace ruido en el modelo.
-
-En efecto sucede que para ciertos test, nos entrega mejores resultados respecto de la autocorrelación en los modelos lagsar(), cuando se ejecutó, daremos un comentario de este punto en dicha sección.
+$\textbf{Nota}:$ Se eligió eliminar la variable median_year_built que es utilizada para inferencia en Analyzing US Census Data pues esta posee alrededor de 800 filas en las que toma valor cero entre 2100, se probó el modelo usando alrededor de 1100 datos con esta variable limpia, y por otro lado se probó con los 1967 datos sin hacer uso de esta variable. Los resultados que se adecuan más a la teoría expuesta cuando no se toma en cuenta esta variable median_year_built debido a la alta pérdida de información, y al bajo p-valor que toma esta variable en los posteriores modelos.
 
 \newpage
 
@@ -297,19 +290,18 @@ En esta sección pasaremos al desarrollo de modelos de predicción, para ello re
 Con la data preparada, podemos crear el primer modelo sencillo de regresión lineal, con la variable dependiente, la raiz cuadrada del valor medio de la vivienda ("NYC Median Home Value")
 
 ```{r, results = 'hide'}
-# model formula
+# Fórmula entre variables dependientes y regresores
 formula <- "sqrt(median_value) ~ median_rooms + median_income + 
 pct_college + pct_foreign_born + pct_white + pct_black + pct_hispanic + 
 pct_asian + median_age + percent_ooh + pop_density"
 
-#Quitamos median_structure_age del modelo
-# compute model
-model1 <- lm(formula = formula, data = nyc_census_data_prepped)
+# Regresión lineal mediante lm
+model1 <- lm(formula = formula, data = nyc_data_prepped)
 summary(model1)
 ```
 
 ```{r, echo = FALSE, fig.align = 'center', out.width="100%"}
-# view model statistics
+# Coeficientes del modelo
 #summary(model1)
 knitr::include_graphics("image/lmmodel.png")
 ```
@@ -325,7 +317,7 @@ Haciendo uso de la librería $\textbf{corrr}$ podemos calcular la matriz de corr
 ```{r, warning=FALSE, message=FALSE}
 library(corrr)
 
-nyc_estimates <- nyc_census_data_prepped %>%
+nyc_estimates <- nyc_data_prepped %>%
   select(-GEOID, -median_value ) %>%
   st_drop_geometry()
 
@@ -354,10 +346,10 @@ Nos interesa además los residuos del modelo, pues esperamos que estos sean expl
 
 ```{r}
 #Añadimos los residuos a la data que estamos trabajando
-nyc_census_data_prepped$residuals <- residuals(model1)
+nyc_data_prepped$residuals <- residuals(model1)
 
 #Plot
-ggplot(nyc_census_data_prepped, aes(x = residuals)) + 
+ggplot(nyc_data_prepped, aes(x = residuals)) + 
   geom_histogram(bins = 100, alpha = 0.5, color = "navy",
                  fill = "navy") + 
   theme_minimal()
@@ -366,18 +358,6 @@ ggplot(nyc_census_data_prepped, aes(x = residuals)) +
 Usaremos esta variable para realizar posteriormente un Test de Índice de Moran, para ello necesitamos hablar sobre lo que es Spatial data, el fenómeno de Spatial autocorrelation y el índice de Moran.
 
 \newpage
-
-### Spatial data
-
-Definimos Spatial data como un conjunto de observaciones de data espacial (Jiang Z., 2019) [@8444678] $$\{(x(s_i),y(s_i)) | \ i \in \mathbb{N} , 1 \leq i \leq n\}$$ donde $n \in \mathbb{N}$ es la cantidad de muestras, $s_i \in \mathbb{R}^{2 \times 1}$ es un vector de coordenadas espaciales, $x(s_i) \in \mathbb{R}^m$ son las variables explicativas del modelo y $y(s_i) \in \mathbb{R}$ es la respuesta a dichas variables donde nuestra intención es predecir $y$.
-
-Este mismo conjunto también puede ser descrito en formato matricial como $(X,Y) \in \mathbb{R}^{(m+1) \times n}$  donde $X = [x(s_1), x(s_2), \dots, x(s_n)]^{T} \in \mathbb{R}^{m \times n}$ (ya que $x(s_i) \in \mathbb{R}^{m}$) y $Y = [y(s_1), y(s_2), \dots, y(s_n)]^{T} \in \mathbb{R}^{n}$.
-
-Por lo tanto, dado un conjunto de muestras de data espacial, buscamos modelar una función $f$ tal que $Y = f(X)$, una vez que el modelo se entrena, puede usarse para precedir $y(s_i)$ dado $x(s_i)$.
-
-La predicción espacial (Spatial prediction) tiene una cualidad única que la diferencia de la predicción usual en data mining en donde se asume que las muestras son independientes e identicamente distribuidas (i.i.d) y por lo tanto dado un modelo reflejado en la función $f$ podemos usarlo para predecir $y(s) = f(x(s))$ para todo $s$, sin embargo la suposición de que los datos son i.i.d no se cumple bajo la data espacial debido a la relación espacial implícita que existe entre posiciones cercanas en una región.
-
-"Todo se relaciona con todo lo demás, pero las cosas más cercanas se relacionan más que las cosas distantes", primera ley de la geografía (Tobler W.R, 1970) [@tobler1970]
 
 ### Spatial Autocorrelation
 
@@ -441,7 +421,7 @@ Buscamos armar una matriz de pesos, para medir la interacción entre cada tramo 
 
 ```{r, results='hide', warning=FALSE, message=FALSE}
 # create neighbor list object
-nyc_nb <- spdep::poly2nb(nyc_census_data_prepped, queen = TRUE)
+nyc_nb <- spdep::poly2nb(nyc_data_prepped, queen = TRUE)
 nyc_nb
 ```
 
@@ -453,61 +433,63 @@ Interpretamos la información de la siguiente manera
 
 -   Tenemos 1967 distritos censales en NYC (aquellos con valor NA se omiten)
 
--   El porcentaje de las entradas $w_{i,j}$ tales que $w_{i,j} \neq 0$ es $0.2765$%
+-   El porcentaje de las entradas $w_{i,j}$ tales que $w_{i,j} \neq 0$ es $0.276$%
 
--   El número promedio de conexiones entre distritos censales, el promedio de cuantas conexiones posee cada distrito es $5.43$
+-   El número promedio de conexiones entre distritos censales, el promedio de cuantas conexiones posee cada distrito es $5.44$
 
 -   Existen 5 distritos que no se conectan con nadie.
 
 \newpage
 
-Podemos hacer un plot de la estructura que posee el objeto "neighborhood list", para visualizarlo usamos funciones "st\_" descritas en Analyzing US Census.
+Podemos hacer un plot de la estructura que posee el objeto "neighborhood list", para visualizarlo usamos funciones descritas en Analyzing US Census.
 
 ```{r, results='hide', warning=FALSE, message=FALSE}
 
-# filter for si
-si <- nyc_census_data_prepped[str_detect(nyc_census_data_prepped$NAM, "Richmond"),]
+# Filtramos para visualizar condado de Bronx
+bronx <- nyc_data_prepped[str_detect(nyc_data_prepped$NAM, "Bronx"),]
 
-# store geometry of polygons
-si_geom <- st_geometry(si)
+# Guardamos su geometría (polygons)
+bronx_geom <- st_geometry(bronx)
 
-# centroid de cada tramo censal
-si_centroids = st_centroid(si_geom)
-si_coordinates = st_coordinates(si_geom)
+# Centroide de cada tramo censal y coordenadas
+bronx_centroids = st_centroid(bronx_geom)
+bronx_coordinates = st_coordinates(bronx_geom)
 
-# create neighbor list
-si_nb_queen <- spdep::poly2nb(si)
-si_nb_rook <- spdep::poly2nb(si, queen=FALSE)
+# Creamos neighbor list
+bronx_nb_queen <- spdep::poly2nb(bronx)
+bronx_nb_rook <- spdep::poly2nb(bronx, queen=FALSE)
 
-# save plot as jpeg
-jpeg("si_neighborhood_rook_queen.jpg", width = 1000, height = 800)
+```
 
-# set plot structure, 2 plots en la misma imagen
+```{r, results='hide', warning=FALSE, message=FALSE}
+# save plot 
+jpeg("image/bronx_neighborhood_rook_queen.jpg", width = 1000, height = 800)
+
+# Preparamos plot 
 par(mfrow = c(1,2))
 
-# plot queen
-plot(si_geom,
+# plot modelo queen
+plot(bronx_geom,
      main = "Queen",
      reset = FALSE,
      cex.main = 3)
-plot(si_nb_queen, si_centroids,
+plot(bronx_nb_queen, bronx_centroids,
      add = TRUE,
      col = 2,
      lwd = 1.5)
 
-# plot rook
-plot(si_geom,
+# plot modelo rook
+plot(bronx_geom,
      main = "Rook",
      reset = FALSE,
      cex.main = 3)
-plot(si_nb_rook, si_centroids,
+plot(bronx_nb_rook, bronx_centroids,
      add = TRUE,
      col = 2,
      lwd = 1.5)
 
 # close jpeg
 dev.off()
-
 ```
 
 \newpage
@@ -515,7 +497,7 @@ dev.off()
 Guardada la imagen con las conexiones entre cada distrito censal con los modelos "Queen" y "Rook" procedemos a mostrar los plots.
 
 ```{r, echo = FALSE, fig.align = 'center', out.width="80%"}
-knitr::include_graphics("image/si_neighborhood_rook_queen.jpg")
+knitr::include_graphics("image/bronx_neighborhood_rook_queen.jpg")
 ```
 
 En efecto, observamos la presencia de conexiones diagonales para el modelo "Queen" a diferencia de la estructur de "Rook", así como en ajedrez, la reina puede moverse en todas direcciones, mientras que la torre solo puede moverse en vertical y horizontal.
@@ -549,7 +531,7 @@ Con ella podemos realizar un test de Índice de Moran para observar autocorrelac
 
 ```{r, results = 'hide'}
 # perform Moran's I test 
-spdep::moran.test(nyc_census_data_prepped$residuals, wts)
+spdep::moran.test(nyc_data_prepped$residuals, wts)
 ```
 
 ```{r, echo = FALSE, fig.align = 'center', out.width="85%"}
@@ -570,11 +552,11 @@ Observamos los residuos, hacemos uso de la función lag.listw() la cual nos toma
 
 ```{r, warning=FALSE, message=FALSE}
 # get lagged version of residuals for plot
-nyc_census_data_prepped$lagged_residuals <- 
-lag.listw(wts, nyc_census_data_prepped$residuals)
+nyc_data_prepped$lagged_residuals <- 
+lag.listw(wts, nyc_data_prepped$residuals)
 
 # plot
-(morans_i_res <- nyc_census_data_prepped %>% 
+(morans_i_res <- nyc_data_prepped %>% 
 ggplot(aes(x = residuals, y = lagged_residuals)) + 
   theme_minimal() + 
   geom_point(alpha = 0.5) + 
@@ -635,7 +617,7 @@ Con el paquete $\textbf{spatialreg}$ hacemos uso de lagsarlm(), el formato para 
 # lag model
 lag_model <- spatialreg::lagsarlm(
   formula = formula, 
-  data = nyc_census_data_prepped, 
+  data = nyc_data_prepped, 
   listw = wts,
   zero.policy=TRUE #Importante  omitir valores NA
 )
@@ -655,7 +637,7 @@ Por otra parte, usando errorsarlm()
 # error model
 error_model <- spatialreg::errorsarlm(
   formula = formula, 
-  data = nyc_census_data_prepped, 
+  data = nyc_data_prepped, 
   listw = wts,
   zero.policy=TRUE
 )
@@ -690,7 +672,6 @@ Notamos que en cuando al test de $R^2$, estadística que mide la proporción de 
 
 -   Model 3 - spatialreg::errorsarlm() $\rightarrow R^2 = 0.65$
 
-$\textbf{Comentario:}$ Notamos los mismos valores de $R^2$ (a excepción del Modelo 1 por muy poco ) que aquellos replicados en [Spatial Machine Learning - J. Morgan](https://justinmorganwilliams.medium.com/spatial-machine-learning-29137dcd1f5f) cuando lo trabajamos sin tomar en cuenta la variable median_year_built
 
 \newpage
 
@@ -740,13 +721,13 @@ library(sf)
 library(tidyverse)
 
 # convert to sp object
-nyc_census_data_prepped_sp <- nyc_census_data_prepped %>%
+nyc_data_prepped_sp <- nyc_data_prepped %>%
   as_Spatial()
 
 # choose bandwidth
 bw <- bw.gwr(
   formula = formula, 
-  data = nyc_census_data_prepped_sp, 
+  data = nyc_data_prepped_sp, 
   kernel = "bisquare",
   adaptive = TRUE
   )
@@ -754,7 +735,7 @@ bw <- bw.gwr(
   # run model
   gw_model <- gwr.basic(
   formula = formula, 
-  data = nyc_census_data_prepped_sp, 
+  data = nyc_data_prepped_sp, 
   bw = bw,
   kernel = "bisquare",
   adaptive = TRUE
@@ -781,10 +762,10 @@ Primero tenemos que añadir los datos R2 locales al objeto sp. Después de esto 
 
 ```{r}
 # gwmodel add to sp object
-nyc_census_data_prepped_sp$gwmodel <- gw_model$SDF$Local_R2
+nyc_data_prepped_sp$gwmodel <- gw_model$SDF$Local_R2
 
 # gwmodels
-nyc_gw_model <- tm_shape(nyc_census_data_prepped_sp) +
+nyc_gw_model <- tm_shape(nyc_data_prepped_sp) +
   tm_fill("gwmodel", 
           palette = "GnBu", 
           title = "Local R2") +
@@ -803,7 +784,7 @@ library(spgwr)
 
 # choose bandwidth
 bw2 <- gwr.sel(formula = formula, 
-               data = nyc_census_data_prepped_sp,
+               data = nyc_data_prepped_sp,
                adapt = TRUE,
                gweight = gwr.bisquare,
                method = "cv",
@@ -811,7 +792,7 @@ bw2 <- gwr.sel(formula = formula,
                
 # run model               
 spgwr_model <- gwr(formula = formula, 
-            data = nyc_census_data_prepped_sp,
+            data = nyc_data_prepped_sp,
             adapt = bw2,
             gweight = gwr.bisquare, 
             hatmatrix = TRUE)
@@ -833,10 +814,10 @@ Hacemos lo mismo que antes con la visualización GWModel
 library(tmap)
 
 # spgwr add to sp object
-nyc_census_data_prepped_sp$spgwr <- spgwr_model$SDF$localR2
+nyc_data_prepped_sp$spgwr <- spgwr_model$SDF$localR2
 
 # spgwr
-nyc_spgwr <- tm_shape(nyc_census_data_prepped_sp) +
+nyc_spgwr <- tm_shape(nyc_data_prepped_sp) +
   tm_fill("spgwr", 
           palette = "GnBu", 
           title = "Local r2") +
@@ -858,28 +839,28 @@ Este modelo es diferente del clásico random forest, ya que se construye un subm
 Escribimos el código para implementar grf()
 
 ```{r, results='hide', message=FALSE}
-# load packages
+#packages
 library(SpatialML)
 library(sf)
 library(tidyverse)
 
 # get centroids from each geom
-nyc_census_data_prepped <- nyc_census_data_prepped %>% 
+nyc_data_prepped <- nyc_data_prepped %>% 
   mutate(lon = map_dbl(geometry, ~st_centroid(.x)[[1]]),
          lat = map_dbl(geometry, ~st_centroid(.x)[[2]]))
 
 # create coords column
-coords <- nyc_census_data_prepped %>% 
+coords <- nyc_data_prepped %>% 
   st_drop_geometry() %>% 
   select(lat,lon)
 
 # prep for grf
-nyc_census_grf_prepped <- nyc_census_data_prepped %>% 
+nyc_grf_prepped <- nyc_data_prepped %>% 
   st_drop_geometry() %>%
   mutate(sqrt_med_value = sqrt(median_value)) %>% 
   select(!c(GEOID, NAM, residuals, lagged_residuals, lat, lon))
 
-# define formula for grf, quitamos median_structure_age
+# Definimos formula para grf
 formula_grf <- "sqrt_med_value ~ median_rooms + median_income + 
 pct_college + pct_foreign_born + pct_white + pct_black + 
 pct_hispanic + pct_asian + median_age + percent_ooh  + 
@@ -888,7 +869,7 @@ pop_density"
 
 # get optimal bandwidth
 bwgrf <- grf.bw(formula = formula_grf,
-                dataset = nyc_census_grf_prepped,
+                dataset = nyc_grf_prepped,
                 kernel = "adaptive",
                 coords = coords,
                 bw.min = 98,
@@ -903,7 +884,7 @@ bwgrf <- grf.bw(formula = formula_grf,
 
 # model
 grf_model <- grf(formula = formula_grf,
-    dframe = nyc_census_grf_prepped,
+    dframe = nyc_grf_prepped,
     bw= 98,
     ntree = 500,
     mtry = 2,
@@ -927,10 +908,10 @@ Visualizamos el desempeño con el R2 local
 # grf
 
 # add grf to sp object
-nyc_census_data_prepped_sp$grf <- grf_model$LGofFit$LM_Rsq100 #local r2 grf 
+nyc_data_prepped_sp$grf <- grf_model$LGofFit$LM_Rsq100 #local r2 grf 
 
 
-nyc_grf <- tm_shape(nyc_census_data_prepped_sp) +
+nyc_grf <- tm_shape(nyc_data_prepped_sp) +
   tm_fill("grf", 
           palette = "GnBu", 
           title = "Local r2") +
@@ -948,7 +929,7 @@ Usamos ggplot para visualizar los 3 modelos sobre el mismo mapa y bajo la misma 
 ```{r, message=FALSE}
 library(ggthemes)
 # pivot then plot
-(ggplot_comp_loc_r2 <- nyc_census_data_prepped_sp %>% 
+(ggplot_comp_loc_r2 <- nyc_data_prepped_sp %>% 
   st_as_sf() %>% 
   pivot_longer(cols = c("spgwr", "gwmodel", "grf")) %>% 
   ggplot(aes(fill = value)) +
@@ -1315,7 +1296,8 @@ $$\sum_{i=1}^{n} |\lambda_i|^{p} \leq \sum_{i,j = 1}^{n} |a_{ij}|^{p} \ \ , 1 \l
 
 Luego, como vimos antes, tenemos ahora $V$ una matriz normalizada, pero no necesariamente $\textit{row-normalized}$, luego
 
-$$I = n (z^{T}Vz)$$ Y como $V$ es simétrica, la escribimos como $V=P^TDP$ usando el teorema espectral, y como $P$ es ortogonal, entonces $x = Pz$ tiene norma $||Pz||_{2} = ||x||_{2} = 1$, en particular $|x_i|^2 \leq 1 \ \ \forall i \in \{1,\dots,n\}$ luego
+$$I = n (z^{T}Vz)$$ 
+Y como $V$ es simétrica, la escribimos como $V=P^TDP$ usando el teorema espectral, y como $P$ es ortogonal, entonces $x = Pz$ tiene norma $||Pz||_{2} = ||x||_{2} = 1$, en particular $|x_i|^2 \leq 1 \ \ \forall i \in \{1,\dots,n\}$ luego
 
 $$I = n(z^TP^T D Pz) = n(x^TDx) = n \sum_{i=1}^{n} \lambda_{i}(V) |x_{i}|^2$$ $$\implies |I| \leq n \sum_{i=1}^{n} |\lambda_i (V)| \leq n \sum_{{i,j = 1}}^{n} |v_{ij}| = n $$ $$\implies I \in [-n,n]$$
 
@@ -1323,7 +1305,3 @@ Sin embargo, usaremos matrices de peso estandarizadas pues son las que mejor se 
 
 Si sabemos el intervalo en el que se mueve $I$ para nuestro modelo, podemos saber que tan significativo es el valor, y por lo tanto que tan presente esta el fenómeno de autocorrelación espacial.
 
-## Referencias
-
-::: {#refs}
-:::
