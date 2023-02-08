@@ -41,19 +41,27 @@ library(ggthemes)
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-El presente documento se enfoca en el desarrollo de modelos de predicción de precios de viviendas mediante el uso de datos georreferenciados sobre los cuales aplicaremos técnicas centradas en datos espaciales y modelos de regresión adaptados para tratar la dependencia espacial que poseen estos mismos. Se hace uso del lenguaje de programación R para simulaciones, y se tomó como referencia el libro [Analyzing US Census Data - Kyle Walker (2023)](https://walker-data.com/census-r/), para obtener y manipular los datos usados en el modelo. El objetivo es predecir el precio de las viviendas en una determinada ubicación utilizando datos que a su vez poseen una componente espacial, sin embargo, su uso trae consigo otros desafíos que debemos enfrentar, tales como la autocorrelación espacial de los datos, la heterogeneidad espacial, entre otros fenómenos que expondremos, los cuales afectan suposiciones clásicas que se toman en modelos más simples de predicción, como puede ser la identica e independiente distribución de los datos o la homocedasticidad de estos. La combinación de estos conceptos permite obtener modelos precisos y útiles para la toma de decisiones, como puede ser su uso para modelos del mercado inmobiliario.
+El presente documento se enfoca en el desarrollo de modelos de predicción de precios de viviendas mediante el uso de datos georreferenciados sobre los cuales aplicaremos técnicas centradas en datos espaciales y modelos de regresión adaptados para tratar la dependencia espacial que poseen estos mismos. Se hace uso del lenguaje de programación R para simulaciones, y se toma como referencia el libro [Analyzing US Census Data - Kyle Walker (2023)](https://walker-data.com/census-r/), para obtener y manipular los datos usados en el modelo. El objetivo es predecir el precio de las viviendas en una determinada ubicación utilizando datos que a su vez poseen una componente espacial, sin embargo, su uso trae consigo otros desafíos que debemos enfrentar, tales como: la autocorrelación espacial de los datos, la heterogeneidad espacial, entre otros fenómenos que expondremos, los cuales afectan suposiciones clásicas que se toman en modelos más simples de predicción, como puede ser la identica e independiente distribución de los datos o la homocedasticidad de estos. La combinación de estos conceptos permite obtener modelos precisos y útiles para la toma de decisiones, como puede ser su uso para modelos del mercado inmobiliario.
 
-En el contexto de datos espaciales [@8444678], trabajamos con un conjunto de observaciones de datos asociados con una componente espacial $\{(x(s_i),y(s_i)) | \ i \in \mathbb{N} , 1 \leq i \leq n\}$ donde $n \in \mathbb{N}$ es la cantidad de muestras, $s_i \in \mathbb{R}^{2}$ es un vector de coordenadas espaciales, $x(s_i) \in \mathbb{R}^m$ son las variables explicativas del modelo y $y(s_i) \in \mathbb{R}$ es la respuesta a dichas variables.
+En el contexto de datos espaciales [@8444678], trabajamos con un conjunto de observaciones de datos asociados con una componente espacial $\{(x(s_i),y(s_i)) | \ i \in \mathbb{N} , 1 \leq i \leq n\}$ donde $n \in \mathbb{N}$ es la cantidad de muestras, $s_i \in \mathbb{R}^{2}$ es un vector de coordenadas espaciales, $x(s_i) \in \mathbb{R}^m$ son las variables explicativas del modelo e $y(s_i) \in \mathbb{R}$ es la respuesta a dichas variables.
 
 Este mismo conjunto también puede ser descrito en formato matricial como $(X,Y) \in \mathbb{R}^{(m+1) \times n}$ donde $X = [x(s_1), x(s_2), \dots, x(s_n)]^{T} \in \mathbb{R}^{m \times n}$, ya que $x(s_i) \in \mathbb{R}^{m}$ e $Y = [y(s_1), y(s_2), \dots, y(s_n)]^{T} \in \mathbb{R}^{n}$.
 
-El problema de la predicción consiste en que, dado un conjunto de muestras de data espacial, buscamos modelar una función $f$ tal que $Y = f(X)$, una vez que el modelo se entrena, puede usarse para precedir la respuesta $y$ en otra locación dado las variables explicativas.
+El problema de la predicción consiste en que, dado un conjunto de muestras de data espacial, buscamos modelar una función $f$ tal que $Y = f(X)$, una vez que el modelo se entrena, puede usarse para precedir la respuesta en otra locación dado las variables explicativas.
 
 La predicción espacial tiene una cualidad diferenciadora de la predicción usual, esto pues, en este último se asume que las muestras son independientes e identicamente distribuidas (i.i.d) y por lo tanto, dado un modelo reflejado en la función $f$ podemos usarlo para predecir $y(s) = f(x(s))$ para todo $s$, sin embargo, la suposición de que los datos son i.i.d no se cumple bajo la data espacial, esto debido a la relación implícita que existe entre posiciones cercanas en una región.
 
 Acorde a la primera ley de la geografía de Tobler W.R: "Todo se relaciona con todo lo demás, pero las cosas más cercanas se relacionan más que las cosas distantes" [@tobler1970], este fenómeno se conoce como autocorrelación espacial, e ignorarlo puede afectar la precisión de modelos que tengan el supuesto de una muestra i.i.d, pues perdemos esta propiedad sobre los datos.
 
 \newpage
+
+Respecto de los desafíos presentes cuando trabajamos con métodos de predicción espacial, abordamos a lo largo del documento los siguientes:
+
+-   $\textit{Autocorrelación espacial}$ $\rightarrow$ como indica Tobler con su primera ley de geografía, los datos espaciales no son estadísticamente independientes entre sí, al contrario estos, están correlacionados, y la intensidad de dicha relación depende de la distancia que exista entre estos, siendo mayor cuando los datos están cerca entre sí, dicho fenómeno interviene cuando usamos modelos de predicción que toman por hipótesis una distribución independiente e identica entre los datos, como es el caso de la regresión lineal.
+
+-   $\textit{Heterogeneidad espacial}$ $\rightarrow$ cuando fragmentamos el espacio para el análisis de los datos y le asignamos a cada sector algún atributo, los datos que conforman ese sector no siguen una distribución idéntica, por lo que, la función que represente al proceso, se asume constante para las muestras que se generen sobre ese mismo sector, esto se conoce como estacionariedad, y dichas suposiciones permiten simplificar la creación de modelos, sin embargo, cuando no se cumple este principio, como es típico con datos demográficos, puede interferir en la precisión y es por ello que necesitamos técnicas que lidien con procesos no estacionarios.
+
+Para el análisis de datos haremos uso de $\textit{tidycensus}$, paquete de R diseñado para facilitar el proceso de adquisición y manejo de datos sobre la población, proporcionados por la oficina del censo de EE.UU, acompañados de otros paquetes para el uso de modelos de predicción, visualización, entre otros.
 
 En $\textit{Analyzing US Census Data - Kyle Walker}$ se muestra como hacer uso de las librerías, entre ellas:
 
@@ -65,61 +73,17 @@ En $\textit{Analyzing US Census Data - Kyle Walker}$ se muestra como hacer uso d
 
 -   ggplot2 : Paquete de R enfocado en la visualización de data, nos permite realizar mapas con información de US Census data. [Ch6.](https://walker-data.com/census-r/mapping-census-data-with-r.html)
 
-### Spatial Data
-
-Viene representada en formas como:
-
--   puntos (point reference data), i.e, ciudades en el mapa
--   lineas (line string), i.e, caminos en el mapa
--   poligonos (shapes) , i.e, distritos censales
+-   spatialreg & GWmodel : Paquete diseñado para la aplicación de modelos de regresión espacial
 
 \newpage
 
-### Tidycensus, funciones principales para obtener data
+## Importando data
 
-Para obtener datos de las distintas bases $\textit{tidycensus}$ ofrece las siguientes funciones
+Importamos datos con $\textit{tidycensus}$ provenientes de la American Community Survey (ACS) 5 year (2016-2020), haciendo uso de la función get_acs()
 
--   get_decennial() : Solicita datos de las API US Decennial Census para 2000, 2010 y 2020.
+Tomamos datos con nivel geográfico de distritos para la ciudad de NY, para ello pedimos datos de los condados de: 'Bronx', 'Kings', 'New York', 'Queens', 'Richmond'
 
--   get_acs() : Solicita datos de las muestras de la American Community Survey de 1 y 5 años. Los datos están disponibles desde el ACS de 1 año hasta 2005 y el ACS de 5 años hasta 2005-2009.
-
--   get_estimates() : Interfaz para las Population Estimates APIs. Estos conjuntos de datos incluyen estimaciones anuales de las características de la población por estado, condado y área metropolitana, junto con componentes de estimaciones demográficas de cambio como nacimientos, muertes y tasas de migración.
-
--   get_pums() : Accede a los datos de ACS Public Use Microdata Sample APIs, Estas muestras incluyen registros anónimos a nivel individual de la ACS organizados por hogar y son muy útiles para muchos análisis de ciencias sociales, get_pums() se cubre con más profundidad en los Capítulos 9 y 10 de $\textit{Analyzing US Census data}$.
-
--   get_flows() : Interfaz para la ACS Migration Flows APIs. Incluye información sobre los flujos de entrada y salida de varias geografías para las muestras de ACS de 5 años, lo que permite realizar análisis de origen y destino
-
-De manera más general, para ver que variables se pueden obtener, $\textit{tidycensus}$ nos provee de la función load_variables(), dicha función requiere de 2 argumentos, $\textit{year}$ que toma el año de referencia de la data, y $\textit{dataset}$.
-
-Para el Decennial Census 2000 a 2010, usar "sf1" o "sf2", el 2020 Decennial Census tambien acepta "sf3" y "sf4", sf hace referencia a Summary Files.
-
-Para variables de la American Community Survey, debemos especificar el año de la encuesta, por ejemplo "acs1" para el primer año de la ACS, por ejemplo si se quiere acceder a la data $\textit{5-year ACS}$
-
-```{r, results='hide', warning=FALSE, message=FALSE}
-load_acs = load_variables(year = 2020, dataset = "acs5")
-```
-
-\newpage
-
-## Spatial Machine Learning
-
-Replicamos la simulación [Spatial Machine Learning, Justin Morgan Williams](https://justinmorganwilliams.medium.com/spatial-machine-learning-29137dcd1f5f), con el fin de entender los desafíos con los que se encuentra el Machine Learning con los datos espaciales, dicha simulación esta fuertemente basada en el capítulo 8 de [Analyzing US Census Data, Modeling US Census Data](https://walker-data.com/census-r/modeling-us-census-data.html)[@walker2023a], respecto de los desafíos al tratar datos espaciales, citando.
-
--   $\textit{Autocorrelación espacial}$ $\rightarrow$ autocorrelación debida a la similitud en la ubicación del componente espacial de los datos
-
--   $\textit{Heterogeneidad espacial}$ $\rightarrow$ datos que no siguen una distribución idéntica dentro del área de muestra
-
--   $\textit{Limited Ground Truth}$ $\rightarrow$ muchas variables explicativas, verdad de terreno limitada
-
--   $\textit{Multiple Scales and Resolutions}$ $\rightarrow$ puede existir en múltiples escalas y resoluciones
-
-Si no se toman en cuenta, pueden tener efecto en la predicción de Machine Learning, entregando resultados que no son óptimos, la simulación trata los primeros 2 puntos, autoccorelación espacial y heterogeneridad espacial.
-
-### Importando data
-
-Importamos data de NYC US Census con $\textit{tidycensus}$
-
-```{r, results='hide', warning=FALSE, message=FALSE}
+```{r, echo=FALSE, results='hide', warning=FALSE, message=FALSE}
 #package
 library(dotenv)
 library(sf)
@@ -146,14 +110,8 @@ variables_to_get <- c(
 )
 ```
 
-\newpage
-
-### Import usando get_acs()
-
-Llamamos las variables antes definidas, en los condados que forman NYC usando get_acs()
-
 ```{r, results='hide', warning=FALSE, message=FALSE}
-# Obtiene acs data y transforma a tipo NYC EPSG
+# Obtiene datos de la ACS y transforma a tipo NYC EPSG
 nyc_data <- get_acs(
   geography = "tract",
   variables = variables_to_get,
@@ -167,27 +125,29 @@ nyc_data <- get_acs(
 
 ```
 
-Las variables que importamos, que se corresponden a estimados que entrega la ACS sobre los condados de NY, son las siguientes:
+Las variables que importamos, y las cuales usaremos como regresores para los modelos de predicción, son las siguientes:
 
--   median_valueE : El valor medio de la vivienda del tramo censal (nuestro outcome)
+-   median_value : El valor medio de la vivienda del tramo censal
 
--   median_roomsE : Cantidad media de habitaciones por casa en el tramo censal
+-   median_rooms : Cantidad media de habitaciones por casa en el tramo censal
 
--   total_populationE : Población total
+-   total_population : Población total
 
--   median_ageE : Edad media de la población en el tramo censal
+-   median_age : Edad media de la población en el tramo censal
 
--   median_year_builtE : Año promedio donde se construyó la vivienda
+-   median_year_built : Año promedio donde se construyó la vivienda
 
--   median_incomeE : Ingreso medio de los hogares en el tramo censal
+-   median_income : Ingreso medio de los hogares en el tramo censal
 
--   pct_collegeE : Porcentaje de la población de 25 años o más con un título universitario de cuatro años
+-   pct_college : Porcentaje de la población de 25 años o más con un título universitario de cuatro años
 
--   pct_foreign_bornE: Porcentaje de la población que nació fuera de EE.UU
+-   pct_foreign_born: Porcentaje de la población que nació fuera de EE.UU
 
--   pct_whiteE : Porcentaje de la población que se identifica como blanco no-hispano, se sigue la misma lógica con pct_blackE, pct_asian, pct_hispanic.
+-   pct_white : Porcentaje de la población que se identifica como blanco no-hispano, se sigue la misma lógica con pct_black, pct_asian, pct_hispanic.
 
--   percent_oohE : El porcentaje de unidades de vivienda en el tramo censal que están ocupadas por sus propietarios.
+-   percent_ooh : El porcentaje de unidades de vivienda en el tramo censal que están ocupadas por sus propietarios.
+
+Los detalles para descargar información de las distintas bases de datos que proporciona $\textit{tidycensus}$ y las distintas variables que tenemos a disposición se encuentran en el $\textbf{Anexo 3}$.
 
 Más detalles sobre la estructura del código se encuentran en la sección 8.2.1 (Data setup and exploratory data analysis), en el libro se toma la misma variable "median home value", pero que a diferencia de esta réplica, se toman los tramos censales en Dallas-Fort Worth metropolitan area, en consecuencia también cambian el código usando en st_transform, a un sistema de referencias apropiado para North Texas (code 32148), a diferencia del caso NYC donde usamos code 2263
 
@@ -207,7 +167,7 @@ tm_shape() +
           title = "2016-2020 ACS",
           legend.hist = TRUE,
           legend.format = scales::dollar_format()) +
-  tm_layout(main.title = "NYC Median Home Value by Census Tract",
+  tm_layout(main.title = "NYC Median Home Value",
             frame = FALSE,
             legend.outside = TRUE,
             bg.color = "grey100",
@@ -369,9 +329,9 @@ La primera ley de geografía (Tobler W.R, 1970) [@tobler1970] nos indica que en 
 
 ### Índice de Moran
 
-Para hacer frente al problema de la autocorrelación espacial hacemos uso del índice de Moran $I$ [@8444678] [@nikparvar2021], coeficiente nos entrega una medida de como se comporta este fenómeno para $n$ observaciones de una misma variable donde cada observación posee una componente espacial. 
+Para hacer frente al problema de la autocorrelación espacial hacemos uso del índice de Moran $I$ [@8444678] [@nikparvar2021], coeficiente nos entrega una medida de como se comporta este fenómeno para $n$ observaciones de una misma variable donde cada observación posee una componente espacial.
 
-Definimos el índice de Moran como 
+Definimos el índice de Moran como
 
 $$I = \frac{\sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij} (y(s_i) - \bar{y})(y(s_j) - \bar{y})}{(\sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij}) \sum _{i=1}^{n} (y(s_i) - \bar{y})^2 /n }$$
 
@@ -611,6 +571,23 @@ El siguiente modelo aborda la heterogeneidad espacial o, más específicamente, 
 
 ### SAR models
 
+$$ Y = \alpha + \rho WY + X \beta + \varepsilon$$
+
+
+$$Y_i = \alpha_i + \rho Y_{lag-i} + \sum_{k} \beta_k X_{ik} + \varepsilon_i$$
+
+
+$$Y_{lag-i} = \sum_{j}w_{ij} Y_j$$
+Errormodel
+
+$$ Y_i = \alpha \sum_{k} \beta_{k}X_{ik} + u_i$$
+donde 
+
+$$u_i = \lambda u_{lag-i} + \varepsilon_i$$
+y
+
+$$u_{lag-i} = \sum_{j} w_{ij} u_{j}$$
+
 Con el paquete $\textbf{spatialreg}$ hacemos uso de lagsarlm(), el formato para crear el modelo es similar a los usados en SLR, usamos como parámetro listw (spatial weights list) nuestra variable wts creada para el test de índice de Moran.
 
 ```{r, results = 'hide'}
@@ -671,7 +648,6 @@ Notamos que en cuando al test de $R^2$, estadística que mide la proporción de 
 -   Model 2 - spatialreg::lagsarlm() $\rightarrow R^2 = 0.63$
 
 -   Model 3 - spatialreg::errorsarlm() $\rightarrow R^2 = 0.65$
-
 
 \newpage
 
@@ -1010,7 +986,7 @@ Para más información respecto de las librerías, consultar [Analyzing US Censu
 
 \newpage
 
-## Anexo 2: Activacion API key
+### Anexo 2: Activacion API key
 
 Para hacer uso de la data que nos proporciona el paquete tidycensus debemos hacer uso de una $\textit{key}$ que nos permita el acceso a la información.
 
@@ -1026,7 +1002,7 @@ Este comando tiene la estructura
 census_api_key(key, overwrite = BOOL, install = BOOL)}
 ```
 
-### Argumentos
+$\textbf{Argumentos}$
 
 -   key: La API Key entregada por el Censo, ingresar con "". Se obtiene en [API Census](https://api.census.gov/data/key_signup.html).
 
@@ -1048,7 +1024,71 @@ readRenviron("~/.Renviron")
 
 \newpage
 
-## Anexo 3: Uso de librerías ggplot2 y tmap para plots con referencias geográficas
+### Anexo 3: Uso de tidycensus para la obtención y manejo de datos
+
+Para obtener datos de las distintas bases $\textit{tidycensus}$ ofrece las siguientes funciones
+
+-   get_decennial() : Solicita datos de las API US Decennial Census para 2000, 2010 y 2020.
+
+-   get_acs() : Solicita datos de las muestras de la American Community Survey de 1 y 5 años. Los datos están disponibles desde el ACS de 1 año hasta 2005 y el ACS de 5 años hasta 2005-2009.
+
+-   get_estimates() : Interfaz para las Population Estimates APIs. Estos conjuntos de datos incluyen estimaciones anuales de las características de la población por estado, condado y área metropolitana, junto con componentes de estimaciones demográficas de cambio como nacimientos, muertes y tasas de migración.
+
+-   get_pums() : Accede a los datos de ACS Public Use Microdata Sample APIs, Estas muestras incluyen registros anónimos a nivel individual de la ACS organizados por hogar y son muy útiles para muchos análisis de ciencias sociales, get_pums() se cubre con más profundidad en los Capítulos 9 y 10 de $\textit{Analyzing US Census data}$.
+
+-   get_flows() : Interfaz para la ACS Migration Flows APIs. Incluye información sobre los flujos de entrada y salida de varias geografías para las muestras de ACS de 5 años, lo que permite realizar análisis de origen y destino
+
+El código utilizado para elegir las variables necesarias para los modelos de predicción es el siguiente:
+
+```{r, results='hide', warning=FALSE, message=FALSE}
+#package
+library(dotenv)
+library(sf)
+library(tidycensus)
+library(dplyr)
+
+# Variable: Condados que forman NYC
+nyc_counties <- c("Bronx","Kings","New York","Queens","Richmond")
+
+# Lista de regresores a utilizar
+variables_to_get <- c(
+  median_value = "B25077_001",
+  median_rooms = "B25018_001",
+  median_income = "DP03_0062",
+  total_population = "B01003_001",
+  median_age = "B01002_001",
+  pct_college = "DP02_0068P",
+  pct_foreign_born = "DP02_0094P",
+  pct_white = "DP05_0077P",
+  pct_black = "DP05_0078P",
+  pct_hispanic = "DP05_0070P",
+  pct_asian = "DP05_0080P",
+  percent_ooh = "DP04_0046P"
+)
+```
+
+\newpage
+
+Para ver que variables se pueden obtener, $\textit{tidycensus}$ nos provee de la función load_variables(), dicha función requiere de 2 argumentos, $\textit{year}$ que toma el año de referencia de la data, y $\textit{dataset}$.
+
+Para el Decennial Census 2000 a 2010, usar "sf1" o "sf2", el 2020 Decennial Census tambien acepta "sf3" y "sf4", sf hace referencia a Summary Files.
+
+Para variables de la American Community Survey, debemos especificar el año de la encuesta, por ejemplo "acs1" para el primer año de la ACS, por ejemplo si se quiere acceder a la data $\textit{5-year ACS}$
+
+```{r, results='hide', warning=FALSE, message=FALSE}
+load_acs = load_variables(year = 2020, dataset = "acs5")
+```
+
+```{r, echo = FALSE, fig.align = 'center', out.width="80%"}
+# Coeficientes del modelo
+knitr::include_graphics("image/loadacs.png")
+```
+
+Más detalles en el capítulo 2 del libro [Analyzing US Census Data](https://walker-data.com/census-r/an-introduction-to-tidycensus.html)
+
+\newpage
+
+### Anexo 4: Uso de librerías ggplot2 y tmap para plots con referencias geográficas
 
 Dada la naturaleza del problema de predicción georeferenciada, nos interesa visualizar la data junto a su componente espacial, a continuación se presenta un breve manual de uso de las librerías $\textit{ggplot2}$ y $\textit{tmap}$ para visualizar los datos acompañados de sus referencias geográficas, los cuales en R se codifican como objetos tipo \textit{polygon}, usando un ejemplo con datos provenientes de NYC.
 
@@ -1208,7 +1248,7 @@ tm_shape(medianincomenyc) +
 
 \newpage
 
-## Anexo 4: Discusión sobre el índice de Moran
+### Anexo 5: Discusión sobre el índice de Moran
 
 Veamos que, bajo ciertas condiciones de la matriz $W$, se tiene que $I \in [-1,1]$, en (Chen, Y. 2022)[@chen2022] tenemos una demostración de que el índice de Moran toma dichos valores cuando $W$ clasifica como "globally normalized wight matrix", pero no entra en detalles, además, se estudia que en la práctica muy típicamente para estas matrices, $I \in (-1,1)$, en el [manual de PQStat](https://manuals.pqstat.pl/en:przestrzenpl:mwagpl) se habla de "Spatial weights matrix" como una matriz con coeficientes positivos y filas estandarizadas de manera las filas sumen uno, esto es $\sum_{j=1}^{n} w_{ij} = 1 \ \ \forall i \in \{1,\dots,n\}$ ($\textit{row-normalized}$).
 
@@ -1228,7 +1268,7 @@ Con ello, podemos probar el siguiente teorema
 
 -   $\textbf{Teorema:}$ Se tiene que el operador $\lambda_{max}: S^n \rightarrow \mathbb{R}$ , que asocia a cada $A \in S^n$ matriz simétrica su mayor valor propio $\lambda_{max} (A)$, es convexa, más aún, $\lambda_{max}(A) = \sup_{||v||=1} v^{T}Av$ supremo de funcionales lineales sobre $S^n$.
 
-El resultado anterior es conocido es corolario de los cocientes de Rayleigh, para una demostración detallada de ver teorema 55 en [The Rayleigh's principle and the minimax principle for the eigenvalues of a self-adjoint matrix](https://people.math.osu.edu/costin.10/5102/Rayleigh%20quotient.pdf) 
+El resultado anterior es conocido es corolario de los cocientes de Rayleigh, para una demostración detallada de ver teorema 55 en [The Rayleigh's principle and the minimax principle for the eigenvalues of a self-adjoint matrix](https://people.math.osu.edu/costin.10/5102/Rayleigh%20quotient.pdf)
 
 \newpage
 
@@ -1296,12 +1336,10 @@ $$\sum_{i=1}^{n} |\lambda_i|^{p} \leq \sum_{i,j = 1}^{n} |a_{ij}|^{p} \ \ , 1 \l
 
 Luego, como vimos antes, tenemos ahora $V$ una matriz normalizada, pero no necesariamente $\textit{row-normalized}$, luego
 
-$$I = n (z^{T}Vz)$$ 
-Y como $V$ es simétrica, la escribimos como $V=P^TDP$ usando el teorema espectral, y como $P$ es ortogonal, entonces $x = Pz$ tiene norma $||Pz||_{2} = ||x||_{2} = 1$, en particular $|x_i|^2 \leq 1 \ \ \forall i \in \{1,\dots,n\}$ luego
+$$I = n (z^{T}Vz)$$ Y como $V$ es simétrica, la escribimos como $V=P^TDP$ usando el teorema espectral, y como $P$ es ortogonal, entonces $x = Pz$ tiene norma $||Pz||_{2} = ||x||_{2} = 1$, en particular $|x_i|^2 \leq 1 \ \ \forall i \in \{1,\dots,n\}$ luego
 
 $$I = n(z^TP^T D Pz) = n(x^TDx) = n \sum_{i=1}^{n} \lambda_{i}(V) |x_{i}|^2$$ $$\implies |I| \leq n \sum_{i=1}^{n} |\lambda_i (V)| \leq n \sum_{{i,j = 1}}^{n} |v_{ij}| = n $$ $$\implies I \in [-n,n]$$
 
 Sin embargo, usaremos matrices de peso estandarizadas pues son las que mejor se ajustan al modelo, y donde sabemos que el índice de Moran se mueve entre $[-1,1]$.
 
 Si sabemos el intervalo en el que se mueve $I$ para nuestro modelo, podemos saber que tan significativo es el valor, y por lo tanto que tan presente esta el fenómeno de autocorrelación espacial.
-
