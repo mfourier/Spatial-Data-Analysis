@@ -47,7 +47,7 @@ En el contexto de datos espaciales [@8444678], trabajamos con un conjunto de obs
 
 Este mismo conjunto también puede ser descrito en formato matricial como $(X,Y) \in \mathbb{R}^{(m+1) \times n}$ donde $X = [x(s_1), x(s_2), \dots, x(s_n)]^{T} \in \mathbb{R}^{m \times n}$, ya que $x(s_i) \in \mathbb{R}^{m}$ e $Y = [y(s_1), y(s_2), \dots, y(s_n)]^{T} \in \mathbb{R}^{n}$.
 
-El problema de la predicción consiste en que, dado un conjunto de muestras de data espacial, buscamos modelar una función $f$ tal que $Y = f(X)$, una vez que el modelo se entrena, puede usarse para precedir la respuesta en otra locación dado las variables explicativas.
+El problema de la predicción consiste en que, dado un conjunto de muestras de data espacial, buscamos modelar una función $f$ tal que $Y = f(X) + \varepsilon$ donde $\varepsilon$ es un término para el error entre el valor real y el predecido, una vez que el modelo se entrena, minimizando el error, puede usarse para precedir la respuesta en otra locación dada sus variables explicativas.
 
 La predicción espacial tiene una cualidad diferenciadora de la predicción usual, esto pues, en este último se asume que las muestras son independientes e identicamente distribuidas (i.i.d) y por lo tanto, dado un modelo reflejado en la función $f$ podemos usarlo para predecir $y(s) = f(x(s))$ para todo $s$, sin embargo, la suposición de que los datos son i.i.d no se cumple bajo la data espacial, esto debido a la relación implícita que existe entre posiciones cercanas en una región.
 
@@ -67,9 +67,9 @@ En $\textit{Analyzing US Census Data - Kyle Walker}$ se muestra como hacer uso d
 
 -   tidycensus : Paquete de R diseñado para facilitar procesos de adquirir y trabajar data de US Census, busca distribuir los datos del censo en un formado compatible con tidyverse, además busca agilizar el proceso del tratado de datos para aquel que esté trabajando en el analisis de datos. [Ch2.](https://walker-data.com/census-r/an-introduction-to-tidycensus.html)
 
--   tidyverse : Coleción de paquetes de R diseñados para la ciencia de datos tales como $\textit{ggplot2}$ para la visualización de data, $\textit{readr}$ para importar y exportar bases de datos, $\textit{tidyr}$ para la remodelación de datos, entre otros. [Ch3.](https://walker-data.com/census-r/wrangling-census-data-with-tidyverse-tools.html)
+-   tidyverse : Coleción de paquetes de R diseñados para la ciencia de datos tales como *ggplot2* para la visualización de data, *readr* para importar y exportar bases de datos, *tidyr* para la remodelación de datos, entre otros. [Ch3.](https://walker-data.com/census-r/wrangling-census-data-with-tidyverse-tools.html)
 
--   tigris : Paquete de R que busca simplificar procesos para los usuarios de obtención de información y uso de data con atributos geográficos (data espacial, Census geographic dataset), data tipo $\textit{sf}$ (simple features) viene con atributos de geometría (vector data type, tipicamente representados por puntos lineas o poligonos). [Ch5.](https://walker-data.com/census-r/census-geographic-data-and-applications-in-r.html)
+-   tigris : Paquete de R que busca simplificar procesos para los usuarios de obtención de información y uso de data con atributos geográficos (data espacial, Census geographic dataset), data tipo *sf* (simple features) viene con atributos de geometría (vector data type, tipicamente representados por puntos lineas o poligonos). [Ch5.](https://walker-data.com/census-r/census-geographic-data-and-applications-in-r.html)
 
 -   ggplot2 : Paquete de R enfocado en la visualización de data, nos permite realizar mapas con información de US Census data. [Ch6.](https://walker-data.com/census-r/mapping-census-data-with-r.html)
 
@@ -79,7 +79,7 @@ En $\textit{Analyzing US Census Data - Kyle Walker}$ se muestra como hacer uso d
 
 ## Importando data
 
-Importamos datos con $\textit{tidycensus}$ provenientes de la American Community Survey (ACS) 5 year (2016-2020), haciendo uso de la función get_acs()
+Importamos datos con *tidycensus* provenientes de la American Community Survey (ACS) 5 year (2016-2020), haciendo uso de la función get_acs()
 
 Tomamos datos con nivel geográfico de distritos para la ciudad de NY, para ello pedimos datos de los condados de: 'Bronx', 'Kings', 'New York', 'Queens', 'Richmond'
 
@@ -125,13 +125,13 @@ nyc_data <- get_acs(
 
 ```
 
-Las variables que importamos, y las cuales usaremos como regresores para los modelos de predicción, son las siguientes:
+Las variables que importamos, y que usaremos para los modelos de predicción, son las siguientes:
 
--   median_value : El valor medio de la vivienda del tramo censal
+-   **median_value** : El valor medio de la vivienda del tramo censal, nuestra variable a predecir
 
 -   median_rooms : Cantidad media de habitaciones por casa en el tramo censal
 
--   total_population : Población total
+-   total_population : Población total en el tramo censal
 
 -   median_age : Edad media de la población en el tramo censal
 
@@ -147,18 +147,35 @@ Las variables que importamos, y las cuales usaremos como regresores para los mod
 
 -   percent_ooh : El porcentaje de unidades de vivienda en el tramo censal que están ocupadas por sus propietarios.
 
-Los detalles para descargar información de las distintas bases de datos que proporciona $\textit{tidycensus}$ y las distintas variables que tenemos a disposición se encuentran en el $\textbf{Anexo 3}$.
+Los detalles para descargar información de las distintas bases de datos que proporciona *tidycensus* y las distintas variables que tenemos a disposición se encuentran en el **Anexo 3**.
 
-Más detalles sobre la estructura del código se encuentran en la sección 8.2.1 (Data setup and exploratory data analysis), en el libro se toma la misma variable "median home value", pero que a diferencia de esta réplica, se toman los tramos censales en Dallas-Fort Worth metropolitan area, en consecuencia también cambian el código usando en st_transform, a un sistema de referencias apropiado para North Texas (code 32148), a diferencia del caso NYC donde usamos code 2263
+Más detalles sobre la estructura del código se encuentran en la sección 8.2.1 de *Analyzing US Census Data*, en el libro se toma la misma variable "median home value", pero a diferencia de nuestro caso, se toman los tramos censales en Dallas-Fort Worth metropolitan area, en consecuencia también cambian el código usando en st_transform, a un sistema de referencias apropiado para North Texas (code 32148), a diferencia del caso NYC donde usamos code 2263
 
 \newpage
 
-## Plot de la variable dependiente
+## Preparando la data para modelar
 
-Nuestra variable dependiente será el valor promedio de la vivienda en NYC.
+Ya que hemos importado los datos, realizamos una limpieza de estos (data scrubbing), identificando datos incompletos, incorrectos o inexactos.
 
-```{r, results='hide', warning=FALSE, message=FALSE}
+Antes de esta tarea, veamos un resumen de los datos, mostrando sus estadísticos principales, tales como mínimo, máximo, promedio, mediana, cuartiles y valores perdidos.
 
+```{r, echo=FALSE, results='hide', warning=FALSE, message=FALSE}
+resumen_nyc <- data.frame(unclass(summary(nyc_data)), check.names = FALSE, stringsAsFactors = FALSE)
+resumen_nyc <- resumen_nyc[,-1:-2]
+resumen_nyc
+```
+
+```{r, echo = FALSE, fig.align = 'center', out.width="100%"}
+knitr::include_graphics("image/estadisticas.png")
+```
+
+La recolección de datos incluye para cada variable otra columna asociada que representa el margen de error de los datos (aquellas que terminan en 'M'), sin embargo, no haremos uso de ello y por tanto la eliminamos del modelo.
+
+Nuestra variable dependiente para los modelos de regresión será el valor promedio de la vivienda en NYC, esta la importamos bajo el nombre de median_value.
+
+Podemos visualizarla haciendo uso del paquete *tmap*, para ello es importante activar la opción de geometría, esto permite descargar las componentes espaciales de los distritos asociados a los datos como objetos tipo *polygon*.
+
+```{r, echo=FALSE, results='hide', warning=FALSE, message=FALSE, out.width='80%', fig.align = 'center'}
 # plot tmap
 (nyc_median_value_hist_tm <- nyc_data[!st_is_empty(nyc_data),,drop=F] %>% 
 tm_shape() +
@@ -176,20 +193,17 @@ tm_shape() +
 
 # save plot
 tmap_save(nyc_median_value_hist_tm, "image/nyc_median_value.png", width=1920, height=1080, asp=0)
-
 ```
 
 \newpage
 
-Notamos en el histograma que se presenta una asimetría a la derecha, existe una población no menor cuyos hogares perciben ingresos mucho mayores a la mediana, y vemos que existe data perdida, para el primer punto, podemos aplicar una transformación a la variable dependiente, tomando su raiz cuadrada para reducir esta asimetría a la derecha y tener los datos mejor distribuidos, acercándose más a una distribución normal, y en consecuencia, entregando resultados más precisos.
+Notamos en el histograma que se presenta una asimetría a la derecha, i.e, existe una población no menor cuyas viviendas poseen un valor mucho mayor a la mediana, usualmente es más facil trabajar con la variable dependiente distribuida como una gaussiana, para ello podemos aplicar una transformación raíz cuadrada, por otro lado tenemos datos sin información, para esto aplicamos herramientas de R para el filtrado.
 
-### Transformación de los datos
+La distribución de la variable dependiente aplicada esta transformación se ve de la siguiente manera
 
-Creamos la nueva variable tomando la raiz cuadrada de la variable dependiente median_valueE
+```{r, echo=FALSE, results='hide', warning=FALSE, message=FALSE, out.width='75%', fig.align = 'center'}
 
-```{r, results='hide', warning=FALSE, message=FALSE}
-
-# Create plot
+# Creamos plot
 (nyc_median_value_sqrt_hist_tm <- nyc_data[!st_is_empty(nyc_data),,drop=F] %>%
    
 # Limpiamos datos vacios
@@ -210,21 +224,11 @@ tm_shape() +
 tmap_save(nyc_median_value_sqrt_hist_tm, "image/nyc_median_value_sqrt.png", width=1920, height=1080, asp=0)
 ```
 
-\newpage
+Eliminamos aquellas variables con data NA, y aquellas columnas con información del margen de error, por lo demás, como tenemos la cantidad de población, y el área que cubre cada distrito (polygon), creamos la variable pop_density, esto pues buscamos transformar la información de la población por distrito de manera que represente mejor la relación que tiene con la variable de salida, en este caso, el valor medio de la vivienda
 
-### Preparando la data para modelar
-
-Debemos borrar aquellas variables con data NA, y eliminar columnas con información del margen de error eliminando las columnas que terminan con "M", se le quita la E final a las columnas como median_valueE y se añaden las variables pop_density y median_structure_age, esto pues buscamos transformar los predictores de manera que se represente mejor la relación que tiene con la variable de salida (en este caso, median_value)
-
--   pop_density $\rightarrow$ mide densidad de población por metros cuadrados
+-   pop_density $\rightarrow$ mide densidad de población en el tramo censal por metros cuadrados
 
 ```{r, warning=FALSE, message=FALSE}
-#packages
-library(dplyr)
-library(stringr)
-library(units)
-library(stats)
-
 # Preparando la data
 nyc_data_prepped <- nyc_data %>% 
   mutate(pop_density = as.numeric(set_units(total_populationE / st_area(.),
@@ -235,15 +239,15 @@ nyc_data_prepped <- nyc_data %>%
 
 ```
 
-\newpage
-
-$\textbf{Nota}:$ Se eligió eliminar la variable median_year_built que es utilizada para inferencia en Analyzing US Census Data pues esta posee alrededor de 800 filas en las que toma valor cero entre 2100, se probó el modelo usando alrededor de 1100 datos con esta variable limpia, y por otro lado se probó con los 1967 datos sin hacer uso de esta variable. Los resultados que se adecuan más a la teoría expuesta cuando no se toma en cuenta esta variable median_year_built debido a la alta pérdida de información, y al bajo p-valor que toma esta variable en los posteriores modelos.
+Para ver como visualizar los datos haciendo uso de la geometría incorporada por *tidycensus*, ver **Anexo 4** en donde se hace una introducción de los paquetes y la sintaxis.
 
 \newpage
 
-## Modelo SLR y Spatial Autocorrelation
+## Regresión lineal y autocorrelación espacial
 
-En esta sección pasaremos al desarrollo de modelos de predicción, para ello replicamos los modelos de predicción hecho en [Spatial Machine Learning, Justin Morgan Williams](https://justinmorganwilliams.medium.com/spatial-machine-learning-29137dcd1f5f) y además, complementamos con el Capítulo 8 del libro [Analyzing US Census Data - Modeling US Census Data](https://walker-data.com/census-r/modeling-us-census-data.html) (Walker K., 2023)[@walker2023a] , capítulo donde se estudian conceptos durante la primera sección como indices de segregación y diversidad los cuales son usados en ciencias sociales para explicar patrones demográficos, en la segunda sección se estudian tópicos en modelamiento estadístico, incluyendo métodos de regresión con atributos espaciales, en donde tomamos en cuenta conceptos como la autocorrelación espacial que está inherente en la mayoría de las variables del censo; en la tercera sección del capítulo se estudian conceptos como clasificación, clusterización y regionalización, que son comunes en técnicas de Machine Learning. Nos enfocamos en particular en la segunda sección del capítulo.
+En esta sección, veremos como la autocorrelación espacial presente en los datos afecta la predicción en modelos cuyas hipótesis requieren de una muestra distribuida de manera identica e independiente.
+
+Complementamos con el Capítulo 8 del libro [Analyzing US Census Data - Modeling US Census Data](https://walker-data.com/census-r/modeling-us-census-data.html) (Walker K., 2023)[@walker2023a] , capítulo donde se estudian conceptos durante la primera sección como indices de segregación y diversidad los cuales son usados en ciencias sociales para explicar patrones demográficos, en la segunda sección se estudian tópicos en modelamiento estadístico, incluyendo métodos de regresión con atributos espaciales, en donde tomamos en cuenta conceptos como la autocorrelación espacial que está inherente en la mayoría de las variables del censo; en la tercera sección del capítulo se estudian conceptos como clasificación, clusterización y regionalización, que son comunes en técnicas de Machine Learning. Nos enfocamos en particular en la segunda sección del capítulo.
 
 ### Simple Linear Regression
 
@@ -316,14 +320,6 @@ ggplot(nyc_data_prepped, aes(x = residuals)) +
 ```
 
 Usaremos esta variable para realizar posteriormente un Test de Índice de Moran, para ello necesitamos hablar sobre lo que es Spatial data, el fenómeno de Spatial autocorrelation y el índice de Moran.
-
-\newpage
-
-### Spatial Autocorrelation
-
-Usando spatial data recolectada, notamos que locaciones cercanas tienden a parecerse entre sí en lugar de ser estadísticamente independientes, llamamos a este fenomeno como efecto de autocorrelación, lo que hace que las muestras nos sean i.i.d, ignorar este factor puede producir modelos menos precisos, por ejemplo cuando aplicamos un modelo de regresión lineal, el error residual esta comunmente correlacionado.
-
-La primera ley de geografía (Tobler W.R, 1970) [@tobler1970] nos indica que en muestras con spatial data, estas no son estadísticamente independientes, si no que se encuentran correlacionadas, en particular sobre locaciones cercanas entre sí.
 
 \newpage
 
@@ -573,18 +569,13 @@ El siguiente modelo aborda la heterogeneidad espacial o, más específicamente, 
 
 $$ Y = \alpha + \rho WY + X \beta + \varepsilon$$
 
-
 $$Y_i = \alpha_i + \rho Y_{lag-i} + \sum_{k} \beta_k X_{ik} + \varepsilon_i$$
 
+$$Y_{lag-i} = \sum_{j}w_{ij} Y_j$$ Errormodel
 
-$$Y_{lag-i} = \sum_{j}w_{ij} Y_j$$
-Errormodel
+$$ Y_i = \alpha \sum_{k} \beta_{k}X_{ik} + u_i$$ donde
 
-$$ Y_i = \alpha \sum_{k} \beta_{k}X_{ik} + u_i$$
-donde 
-
-$$u_i = \lambda u_{lag-i} + \varepsilon_i$$
-y
+$$u_i = \lambda u_{lag-i} + \varepsilon_i$$ y
 
 $$u_{lag-i} = \sum_{j} w_{ij} u_{j}$$
 
@@ -743,9 +734,9 @@ nyc_data_prepped_sp$gwmodel <- gw_model$SDF$Local_R2
 # gwmodels
 nyc_gw_model <- tm_shape(nyc_data_prepped_sp) +
   tm_fill("gwmodel", 
-          palette = "GnBu", 
+          palette = "RdBu", 
           title = "Local R2") +
-  tm_layout(main.title = "GWR (GWModel) Local R2")
+  tm_layout(main.title = "GWR [GWModel] Local R2")
 nyc_gw_model
 ```
 
@@ -795,9 +786,9 @@ nyc_data_prepped_sp$spgwr <- spgwr_model$SDF$localR2
 # spgwr
 nyc_spgwr <- tm_shape(nyc_data_prepped_sp) +
   tm_fill("spgwr", 
-          palette = "GnBu", 
-          title = "Local r2") +
-  tm_layout(main.title = "GWR (spgwr) Local R2")
+          palette = "RdBu", 
+          title = "Local R2") +
+  tm_layout(main.title = "GWR [spgwr] Local R2")
 
 nyc_spgwr
 ```
@@ -883,15 +874,14 @@ Visualizamos el desempeño con el R2 local
 ```{r}
 # grf
 
-# add grf to sp object
+# Añadimos R2 local 
 nyc_data_prepped_sp$grf <- grf_model$LGofFit$LM_Rsq100 #local r2 grf 
-
 
 nyc_grf <- tm_shape(nyc_data_prepped_sp) +
   tm_fill("grf", 
-          palette = "GnBu", 
+          palette = "RdBu", 
           title = "Local r2") +
-  tm_layout(main.title = "GRF (SpatialML) Local R2")
+  tm_layout(main.title = "GRF [SpatialML] Local R2")
 
 nyc_grf
 ```
@@ -910,11 +900,11 @@ library(ggthemes)
   pivot_longer(cols = c("spgwr", "gwmodel", "grf")) %>% 
   ggplot(aes(fill = value)) +
     geom_sf(color = NA) +
-    scale_fill_viridis_c() +
+    scale_fill_fermenter(n.breaks = 8, palette = "RdBu", direction = 0) +
     ggthemes::theme_map(base_size = 8) +
     facet_wrap(~name) +
-    labs(title = "Local R2 of Geographically Weighted Models",
-         fill = "R2") +
+    labs(title = "Modelos GW: Comparativa R2 Local",
+         fill = "Local R2") +
     theme(plot.title.position = 'plot',
           plot.title = element_text(hjust = 0.5,
                                     vjust = 3,
@@ -933,6 +923,7 @@ dev.off()
 ```
 
 Podemos ver que la versión GWR del paquete GWmodel tiene, con diferencia, las puntuaciones R2 locales más altas las alcanza el paquete GWModel seguido por el paquete spgwr (GWR) y finalmente SpatialML (GRF)
+
 
 \newpage
 
@@ -988,7 +979,7 @@ Para más información respecto de las librerías, consultar [Analyzing US Censu
 
 ### Anexo 2: Activacion API key
 
-Para hacer uso de la data que nos proporciona el paquete tidycensus debemos hacer uso de una $\textit{key}$ que nos permita el acceso a la información.
+Para hacer uso de la data que nos proporciona el paquete tidycensus debemos hacer uso de una *key* que nos permita el acceso a la información.
 
 El siguiente código ejecuta la activación de la llave 'API Key' que nos permite descargar Census Data, mediante funciones como get_acs, el primer argumento es la llave utilizada en este código.
 
@@ -1002,7 +993,7 @@ Este comando tiene la estructura
 census_api_key(key, overwrite = BOOL, install = BOOL)}
 ```
 
-$\textbf{Argumentos}$
+**Argumentos**
 
 -   key: La API Key entregada por el Censo, ingresar con "". Se obtiene en [API Census](https://api.census.gov/data/key_signup.html).
 
@@ -1026,7 +1017,7 @@ readRenviron("~/.Renviron")
 
 ### Anexo 3: Uso de tidycensus para la obtención y manejo de datos
 
-Para obtener datos de las distintas bases $\textit{tidycensus}$ ofrece las siguientes funciones
+Para obtener datos de las distintas bases *tidycensus* ofrece las siguientes funciones
 
 -   get_decennial() : Solicita datos de las API US Decennial Census para 2000, 2010 y 2020.
 
@@ -1034,7 +1025,7 @@ Para obtener datos de las distintas bases $\textit{tidycensus}$ ofrece las sigui
 
 -   get_estimates() : Interfaz para las Population Estimates APIs. Estos conjuntos de datos incluyen estimaciones anuales de las características de la población por estado, condado y área metropolitana, junto con componentes de estimaciones demográficas de cambio como nacimientos, muertes y tasas de migración.
 
--   get_pums() : Accede a los datos de ACS Public Use Microdata Sample APIs, Estas muestras incluyen registros anónimos a nivel individual de la ACS organizados por hogar y son muy útiles para muchos análisis de ciencias sociales, get_pums() se cubre con más profundidad en los Capítulos 9 y 10 de $\textit{Analyzing US Census data}$.
+-   get_pums() : Accede a los datos de ACS Public Use Microdata Sample APIs, Estas muestras incluyen registros anónimos a nivel individual de la ACS organizados por hogar y son muy útiles para muchos análisis de ciencias sociales, get_pums() se cubre con más profundidad en los Capítulos 9 y 10 de *Analyzing US Census data*.
 
 -   get_flows() : Interfaz para la ACS Migration Flows APIs. Incluye información sobre los flujos de entrada y salida de varias geografías para las muestras de ACS de 5 años, lo que permite realizar análisis de origen y destino
 
@@ -1110,7 +1101,7 @@ medianincomenystate <- get_acs(geography = "county",
 
 Comencemos a visualizar la información, probaremos primeramente con plot, y luego usaremos herramientas mas avanzadas que nos ofrecen los paquetes
 
-```{r, fig.align = 'center', out.width='70%'}
+```{r, fig.align = 'center', out.width='60%'}
 plot(medianincomenystate["NAME"])
 ```
 
@@ -1120,7 +1111,7 @@ plot(medianincomenystate["NAME"])
 
 En $\textit{ggplot2}$ podemos plotear rapidamente objetos de tipo $\textit{sf}$ mediante geom_sf(), para entender la sintaxis realizamos el siguiente plot de el estimado de la variable "Median income New York".
 
-```{r, fig.align = 'center', out.width='60%'}
+```{r, fig.align = 'center', out.width='50%'}
 ggplot(data = medianincomenystate, aes(fill = estimate)) + 
   geom_sf()
 ```
@@ -1148,13 +1139,13 @@ Las funciones que acompañan la sintaxis nos permiten customizar nuestro plot en
 
 -   theme_void() : Nos permite remover el fondo y la grilla cuadrícular.
 
-\newpage
-
 ### Histograma del valor medio de las viviendas en el estado New York
 
 ```{r, out.width='60%', fig.align = 'center'}
 hist(medianincomenystate$estimate)
 ```
+
+\newpage
 
 ### Map-making con tmap
 
@@ -1168,7 +1159,7 @@ tm_shape(medianincomenystate) +
 
 ### Variables en tmap
 
-Veamos nuevamente la variable "median income"
+Veamos nuevamente la variable "median income", para ello llamamos la variable a visualizar dentro de tm_polygons
 
 ```{r, out.width='60%', fig.align = 'center'}
 library(tmap)
@@ -1245,6 +1236,8 @@ tm_shape(medianincomenyc) +
             bg.color = "grey80", #backgroundcolor
             legend.hist.width = 7)
 ```
+
+Más detalles en el capítulo 6 de Analyzing US Census Data. Ver también [Tmap Book](https://r-tmap.github.io/tmap-book/index.html)
 
 \newpage
 
