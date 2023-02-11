@@ -41,7 +41,7 @@ library(ggthemes)
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-El presente documento se enfoca en el desarrollo de modelos de predicción de precios de viviendas mediante el uso de datos georreferenciados sobre los cuales aplicaremos técnicas centradas en datos espaciales y modelos de regresión adaptados para tratar la dependencia espacial que poseen estos mismos. Se hace uso del lenguaje de programación R para simulaciones, y se toma como referencia el libro [Analyzing US Census Data - Kyle Walker (2023)](https://walker-data.com/census-r/), para obtener y manipular los datos usados en el modelo. El objetivo es predecir el precio de las viviendas en una determinada ubicación utilizando datos que a su vez poseen una componente espacial, sin embargo, su uso trae consigo otros desafíos que debemos enfrentar, tales como: la autocorrelación espacial de los datos, la heterogeneidad espacial, entre otros fenómenos que expondremos, los cuales afectan suposiciones clásicas que se toman en modelos más simples de predicción, como puede ser la identica e independiente distribución de los datos o la homocedasticidad de estos. La combinación de estos conceptos permite obtener modelos precisos y útiles para la toma de decisiones, como puede ser su uso para modelos del mercado inmobiliario.
+El presente documento se enfoca en el desarrollo de modelos de predicción de precios de viviendas mediante el uso de datos georreferenciados sobre los cuales aplicaremos técnicas centradas en datos espaciales y modelos de regresión adaptados para tratar la dependencia espacial que poseen estos mismos. Se hace uso del lenguaje de programación R para simulaciones, y se toma como referencia el libro [Analyzing US Census Data - Kyle Walker (2023)](https://walker-data.com/census-r/), para obtener y manipular los datos usados en el modelo. El objetivo de predecir el precio de las viviendas en una determinada ubicación utilizando datos georreferenciados trae consigo una serie de desafíos que debemos enfrentar, tales como: la autocorrelación espacial de los datos, la heterogeneidad espacial, entre otros fenómenos que expondremos, los cuales afectan suposiciones clásicas que se toman en modelos más simples de predicción, como puede ser la identica e independiente distribución de los datos o la homocedasticidad de estos. La combinación de estos conceptos permite obtener modelos precisos y útiles para la toma de decisiones, como puede ser su uso para modelos del mercado inmobiliario.
 
 En el contexto de datos espaciales [@8444678], trabajamos con un conjunto de observaciones de datos asociados con una componente espacial $\{(x(s_i),y(s_i)) | \ i \in \mathbb{N} , 1 \leq i \leq n\}$ donde $n \in \mathbb{N}$ es la cantidad de muestras, $s_i \in \mathbb{R}^{2}$ es un vector de coordenadas espaciales, $x(s_i) \in \mathbb{R}^m$ son las variables explicativas del modelo e $y(s_i) \in \mathbb{R}$ es la respuesta a dichas variables.
 
@@ -67,13 +67,13 @@ En $\textit{Analyzing US Census Data - Kyle Walker}$ se muestra como hacer uso d
 
 -   tidycensus : Paquete de R diseñado para facilitar procesos de adquirir y trabajar data de US Census, busca distribuir los datos del censo en un formado compatible con tidyverse, además busca agilizar el proceso del tratado de datos para aquel que esté trabajando en el analisis de datos. [Ch2.](https://walker-data.com/census-r/an-introduction-to-tidycensus.html)
 
--   tidyverse : Coleción de paquetes de R diseñados para la ciencia de datos tales como *ggplot2* para la visualización de data, *readr* para importar y exportar bases de datos, *tidyr* para la remodelación de datos, entre otros. [Ch3.](https://walker-data.com/census-r/wrangling-census-data-with-tidyverse-tools.html)
+-   *tidyverse* : Coleción de paquetes de R diseñados para la ciencia de datos tales como *ggplot2* para la visualización de data, *readr* para importar y exportar bases de datos, *tidyr* para la remodelación de datos, entre otros. [Ch3.](https://walker-data.com/census-r/wrangling-census-data-with-tidyverse-tools.html)
 
--   tigris : Paquete de R que busca simplificar procesos para los usuarios de obtención de información y uso de data con atributos geográficos (data espacial, Census geographic dataset), data tipo *sf* (simple features) viene con atributos de geometría (vector data type, tipicamente representados por puntos lineas o poligonos). [Ch5.](https://walker-data.com/census-r/census-geographic-data-and-applications-in-r.html)
+-   *tigris* : Paquete de R que busca simplificar procesos para los usuarios de obtención de información y uso de data con atributos geográficos (data espacial, Census geographic dataset), data tipo *sf* (simple features) viene con atributos de geometría (vector data type, tipicamente representados por puntos lineas o poligonos). [Ch5.](https://walker-data.com/census-r/census-geographic-data-and-applications-in-r.html)
 
--   ggplot2 : Paquete de R enfocado en la visualización de data, nos permite realizar mapas con información de US Census data. [Ch6.](https://walker-data.com/census-r/mapping-census-data-with-r.html)
+-   *ggplot2* : Paquete de R enfocado en la visualización de data, nos permite realizar mapas con información de US Census data. [Ch6.](https://walker-data.com/census-r/mapping-census-data-with-r.html)
 
--   spatialreg & GWmodel : Paquete diseñado para la aplicación de modelos de regresión espacial
+-   *spatialreg & GWmodel* : Paquete diseñado para la aplicación de modelos de regresión espacial
 
 \newpage
 
@@ -243,11 +243,68 @@ Para ver como visualizar los datos haciendo uso de la geometría incorporada por
 
 \newpage
 
-## Regresión lineal y autocorrelación espacial
+## Autocorrelación espacial: Efectos sobre una regresión lineal
 
-En esta sección, veremos como la autocorrelación espacial presente en los datos afecta la predicción en modelos cuyas hipótesis requieren de una muestra distribuida de manera identica e independiente.
+Existen múltiples modelos estadísticos que se rigen por hipótesis que requieren de una distribución i.i.d de los datos, sin embargo, como mencionamos anteriormente, esta cualidad se pierde al trabajar con datos espaciales.
 
-Complementamos con el Capítulo 8 del libro [Analyzing US Census Data - Modeling US Census Data](https://walker-data.com/census-r/modeling-us-census-data.html) (Walker K., 2023)[@walker2023a] , capítulo donde se estudian conceptos durante la primera sección como indices de segregación y diversidad los cuales son usados en ciencias sociales para explicar patrones demográficos, en la segunda sección se estudian tópicos en modelamiento estadístico, incluyendo métodos de regresión con atributos espaciales, en donde tomamos en cuenta conceptos como la autocorrelación espacial que está inherente en la mayoría de las variables del censo; en la tercera sección del capítulo se estudian conceptos como clasificación, clusterización y regionalización, que son comunes en técnicas de Machine Learning. Nos enfocamos en particular en la segunda sección del capítulo.
+En esta sección, se exponen métodos para medir la autocorrelación espacial presente en los datos, interpretaciones de dichas medidas y como este fenómeno afecta la predicción de modelos, cuyas hipótesis se ven comprometidas por la naturaleza de la muestra, como es el caso de la regresión lineal
+
+### Índice de Moran
+
+Para medir la autocorrelación espacial presente en los datos, hacemos uso del índice de Moran $I$ [@8444678] [@nikparvar2021], este coeficiente nos entrega una magnitud de la presencia de este fenómeno para $n$ observaciones de una misma variable, donde las muestras poseen una componente espacial.
+
+Definimos el índice de Moran como
+
+$$I = \frac{\sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij} (y(s_i) - \bar{y})(y(s_j) - \bar{y})}{(\sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij}) \sum _{i=1}^{n} (y(s_i) - \bar{y})^2 /n }$$
+
+O de manera equivalente
+
+$$= \frac{n}{W}\frac{\sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij} (y(s_i) - \bar{y})(y(s_j) - \bar{y})}{\sum _{i=1}^{n} (y(s_i) - \bar{y})^2}$$
+
+donde $\bar{y} = \sum_{i=1}^{n} y(s_i)/n$ con $n$ el número total de muestras, a partir de ahora, para simplificar la notación, $y(s_i) = y_i$, además $W = \sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij}$, y abusando de la notación, $W = (w_{ij})_{i,j = 1}^{n}$, que consideramos como una $\textbf{matriz de pesos estandarizada}$.
+
+Entenderemos por $\textbf{matriz de pesos estandarizada}$ aquella que cumple las siguientes propiedades
+
+-   Supondremos $w_{ij} \geq 0 \ \  \forall i,j \in \{1, \dots, n\}$, pues $w\_{ij}$ es una magnitud de la influencia que hay entre los vecinos $i$ y $j$
+
+-   Típicamente, $w_{ii} = 0 \ \ \forall i \in \{1, \dots, n\}$, pues el hecho de que un punto tenga influencia con el mismo puede generar ruido en el modelo
+
+-   Suponemos que la influencia que tiene $y_{i}$ sobre $y_{j}$ es la misma que la de $y_{j}$ sobre $y_{i}$, esto es, $w_{ij} = w_{ji} \ \ \forall i,j \in \{1, \dots, n\}$, es decir, $W$ es simétrica
+
+-   *Row-normalized*: Para cada $i \in \{1,\dots,n\}$ se tiene que $\sum_{j=1}^{n} w_{ij} = \alpha$ para algún $\alpha \in \mathbb{R}$ esto pues, entendemos la suma $\sum_{j=1}^{n} w_{ij}$ como la influencia total que existe entre el vecino $i$ y todos sus vecinos $j$, por lo que pedimos que la influencia total sea la misma para cada vecino $i \in \{1,\dots,n\}$, de manera que el nivel de influencia esté estandarizado para cada vecino, típicamente tomamos $\alpha = 1$.
+
+El índice de Moran, toma valores entre -1 y 1 dado un muestreo aleatorio $(y(s_i))_{i=1}^{n}$, para una demostración detallada de esta propiedad, ver **Anexo 5**.
+
+\newpage
+
+Este estadístico mide que tan similar es una variable respecto de las variables cercanas, por ejemplo, si este se acerca a $-1$ nos dice que cada en cada región, esta tiende a tener valores distinto de su entorno, y en caso contrario, si se acerca a $1$, cada región es similar a su entorno, resumiendo
+
+-   $I \approx -1 \rightarrow$ Se clusterizan valores distintos entre sí (dispersión perfecta)
+
+-   $I \approx 0 \rightarrow$ No existe una clara relación entre los valores de los datos y sus entornos, es decir, no hay pruebas de autocorrelación espacial. 
+
+-   $I \approx 1 \rightarrow$ Se clusterizan valores similares entre sí
+
+```{r, echo = FALSE, fig.align = 'center', out.width="80%"}
+knitr::include_graphics("image/moranindex.jpg")
+```
+
+Comentando sobre el significado de este valor, al igual que la correlación usual, en donde vemos la relación entre 2 variables, tomando una como variable de entrada y la otra su variable de respuesta, la autocorrelación es similar, pero la variable de respuesta es la misma variable de entrada, tomando en cuenta el factor espacial por medio de nuestra matriz de pesos.
+
+Dada su estructura, vemos que el índice de Moran es una auto-covarianza espacial estandarizada [@chen2013].
+
+Además, si consideramos la hipótesis nula
+$$H_0: \text{No existe autocorrelación espacial}$$
+En donde suponemos que, dada una permutación de la muestra, es decir, cambiando el orden en el que vienen los datos $(x_i)_{i=1}^{N}$, y fijando la matriz de pesos antes del reordenamiento, no se debiese tener un impacto sobre el valor de $I$, pues estos no muestran relacionarse entre sí, se tiene que 
+
+$$\mathbb{E}(I) = -\frac{1}{N-1}$$
+Lo que es consistente con el modelo, pues para una muestra grande, de no existir autocorrelación espacial, esperamos que $I \approx 0$
+
+Luego, podemos usar esta propiedad para inferencias estadísticas por medio del p-valor
+
+Para una demostración detallada de este hecho, ver **Anexo 5**.
+
+\newpage
 
 ### Simple Linear Regression
 
@@ -319,55 +376,11 @@ ggplot(nyc_data_prepped, aes(x = residuals)) +
   theme_minimal()
 ```
 
-Usaremos esta variable para realizar posteriormente un Test de Índice de Moran, para ello necesitamos hablar sobre lo que es Spatial data, el fenómeno de Spatial autocorrelation y el índice de Moran.
-
-\newpage
-
-### Índice de Moran
-
-Para hacer frente al problema de la autocorrelación espacial hacemos uso del índice de Moran $I$ [@8444678] [@nikparvar2021], coeficiente nos entrega una medida de como se comporta este fenómeno para $n$ observaciones de una misma variable donde cada observación posee una componente espacial.
-
-Definimos el índice de Moran como
-
-$$I = \frac{\sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij} (y(s_i) - \bar{y})(y(s_j) - \bar{y})}{(\sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij}) \sum _{i=1}^{n} (y(s_i) - \bar{y})^2 /n }$$
-
-O de manera equivalente
-
-$$= \frac{n}{W}\frac{\sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij} (y(s_i) - \bar{y})(y(s_j) - \bar{y})}{\sum _{i=1}^{n} (y(s_i) - \bar{y})^2}$$
-
-donde $\bar{y} = \sum_{i=1}^{n} y(s_i)/n$ con $n$ el número total de muestras, a partir de ahora, para simplificar la notación, $y(s_i) = y_i$, además $W = \sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij}$, y abusando de la notación, $W = (w_{ij})_{i,j = 1}^{n}$, que consideramos como una $\textbf{matriz de pesos estandarizada}$.
-
-Dada su estructura, vemos que el índice de Moran es una auto-covarianza espacial estandarizada [@chen2013].
-
-Entenderemos por $\textbf{matriz de pesos estandarizada}$ aquella que cumple las siguientes propiedades
-
--   Supondremos $w_{ij} \geq 0 \ \  \forall i,j \in \{1, \dots, n\}$, pues $w\_{ij}$ es una magnitud de la influencia que hay entre los vecinos $i$ y $j$
-
--   Típicamente, $w_{ii} = 0 \ \ \forall i \in \{1, \dots, n\}$, pues el hecho de tener que un punto tenga influencia con el mismo puede generar ruido en el modelo
-
--   Suponemos que la influencia que tiene $y_{i}$ sobre $y_{j}$ es la misma que la de $y_{j}$ sobre $y_{i}$, esto es, $w_{ij} = w_{ji} \ \ \forall i,j \in \{1, \dots, n\}$, es decir, $W$ es simétrica
-
--   \textit{Row-normalized:} Para cada $i \in \{1,\dots,n\}$ se tiene que $\sum_{j=1}^{n} w_{ij} = \alpha$ para algún $\alpha \in \mathbb{R}$, esto pues, entendemos la suma $\sum_{j=1}^{n} w_{ij}$ como la influencia total que existe entre el vecino $i$ y todos sus vecinos $j$, por lo que pedimos que la influencia total sea la misma para cada vecino $i \in \{1,\dots,n\}$, de manera que el nivel de influencia esté estandarizado para cada vecino.
-
-Comentando sobre el significado de este valor, al igual que la correlación, en donde vemos la relación entre 2 variables de entrada cuando vemos el cambio que tienen respecto de una variable de respuesta, la autocorrelación es similar pero la variable de respuesta es la misma variable de entrada [(Fuente)](https://www.statisticshowto.com/morans-i/).
-
-\newpage
-
-El índice de Moran mide que tan similar es una variable respecto de las variables cercanas, por ejemplo, si este se acerca a $-1$ nos dice que cada variable tiende a tener valores distinto de sus alrededores, y caso contrario si se acerca a $1$, resumiendo
-
--   $I \approx -1 \rightarrow$ Se clusterizan valores distintos entre sí (dispersión perfecta)
-
--   $I \approx 0 \rightarrow$ No existe autocorrelación espacial (podemos pensar que los datos son independientes identicamente distribuidos en el espacio)
-
--   $I \approx 1 \rightarrow$ Se clusterizan valores similares entre sí
-
-```{r, echo = FALSE, fig.align = 'center', out.width="100%"}
-knitr::include_graphics("image/moranindex.jpg")
-```
-
 \newpage
 
 ### Spatial Weights Matrix
+
+**Continuar**: Reordenar, mandar códigos al anexo, redactar mejor
 
 Seguimos el modelo, para esta parte nos guiamos con el capítulo 7 [Analyzing US Census Data - Spatial analysis with US Census Data](https://walker-data.com/census-r/spatial-analysis-with-us-census-data.html)
 
@@ -529,8 +542,11 @@ El plot muestra una correlación positiva entre el fenómeno de autocorrelación
 
 Para trabajar este problema, tenemos métodos para tratar con regresión espacial
 
+Para complementar, ver el Capítulo 8 del libro [Analyzing US Census Data - Modeling US Census Data](https://walker-data.com/census-r/modeling-us-census-data.html) (Walker K., 2023)[@walker2023a], capítulo donde se estudian conceptos durante la primera sección como indices de segregación y diversidad los cuales son usados en ciencias sociales para explicar patrones demográficos, en la segunda sección se estudian tópicos en modelamiento estadístico, incluyendo métodos de regresión con atributos espaciales, en donde tomamos en cuenta conceptos como la autocorrelación espacial que está inherente en la mayoría de las variables del censo; en la tercera sección del capítulo se estudian conceptos como clasificación, clusterización y regionalización, que son comunes en técnicas de Machine Learning.
+
 ## Spatial Regression Model
 
+**Continuar**
 En está sección se aplica el dataset junto a 5 modelos distintos de regresión espacial con los diferentes paquetes que proporciona R.
 
 Cada uno de ellos son adaptaciones de distintas técnicas de Machine Learning para hacer frente a los problemas asociados a data espacial.
@@ -567,11 +583,16 @@ El siguiente modelo aborda la heterogeneidad espacial o, más específicamente, 
 
 ### SAR models
 
-$$ Y = \alpha + \rho WY + X \beta + \varepsilon$$
+**[Redactar intuición de los modelos, matraquear un poco, ]**
 
+**Lag Model**
+$$ Y = \alpha + \rho WY + X \beta + \varepsilon$$
+Por fila $i$
 $$Y_i = \alpha_i + \rho Y_{lag-i} + \sum_{k} \beta_k X_{ik} + \varepsilon_i$$
 
-$$Y_{lag-i} = \sum_{j}w_{ij} Y_j$$ Errormodel
+$$Y_{lag-i} = \sum_{j}w_{ij} Y_j$$ 
+
+**Errormodel**
 
 $$ Y_i = \alpha \sum_{k} \beta_{k}X_{ik} + u_i$$ donde
 
@@ -1245,7 +1266,7 @@ Más detalles en el capítulo 6 de Analyzing US Census Data. Ver también [Tmap 
 
 Veamos que, bajo ciertas condiciones de la matriz $W$, se tiene que $I \in [-1,1]$, en (Chen, Y. 2022)[@chen2022] tenemos una demostración de que el índice de Moran toma dichos valores cuando $W$ clasifica como "globally normalized wight matrix", pero no entra en detalles, además, se estudia que en la práctica muy típicamente para estas matrices, $I \in (-1,1)$, en el [manual de PQStat](https://manuals.pqstat.pl/en:przestrzenpl:mwagpl) se habla de "Spatial weights matrix" como una matriz con coeficientes positivos y filas estandarizadas de manera las filas sumen uno, esto es $\sum_{j=1}^{n} w_{ij} = 1 \ \ \forall i \in \{1,\dots,n\}$ ($\textit{row-normalized}$).
 
-En la discusión ["Why is Moran's I coming out greater than 1" - StackExchange](https://stats.stackexchange.com/questions/160459/why-is-morans-i-coming-out-greater-than-1) se muestra un contraejemplo de matriz $W$ cuya suma de las entradas es $\sum_{i,j}^{n} w_{ij} = 1$ y para muestras $(X_1,\dots,X_4)$ sucede $I = 3$, por lo que si $W$ no cumple la propiedad de ser $row-normalize$, no se puede saber a primeras los valores que puede tomar $I$, y por tanto, no tenemos una referencia clara de la significancia que pueda tener la magnitud de $I$ en el modelo si no conocemos sus valores máximos y mínimos.
+En la discusión ["Why is Moran's I coming out greater than 1" - StackExchange](https://stats.stackexchange.com/questions/160459/why-is-morans-i-coming-out-greater-than-1) se muestra un contraejemplo de matriz $W$ cuya suma de las entradas es $\sum_{i,j}^{n} w_{ij} = 1$ y para muestras $(X_1,\dots,X_4)$, donde sucede que $I = 3$, por lo que si $W$ no cumple la propiedad de ser $row-normalize$, no se puede saber a primeras los valores que puede tomar $I$, y por tanto, no tenemos una referencia clara de la significancia que pueda tener la magnitud de $I$ en el modelo si no conocemos sus valores máximos y mínimos.
 
 Veremos que se puede relajar la condición de que la suma de las filas sean todas iguales a $1$ y pediremos que la suma de las filas sea un número $\alpha$ para cada fila, trabajaremos entonces con matrices de pesos estandarizadas que son las adecuadas para un modelo de autocorrelación
 
@@ -1261,7 +1282,7 @@ Con ello, podemos probar el siguiente teorema
 
 -   $\textbf{Teorema:}$ Se tiene que el operador $\lambda_{max}: S^n \rightarrow \mathbb{R}$ , que asocia a cada $A \in S^n$ matriz simétrica su mayor valor propio $\lambda_{max} (A)$, es convexa, más aún, $\lambda_{max}(A) = \sup_{||v||=1} v^{T}Av$ supremo de funcionales lineales sobre $S^n$.
 
-El resultado anterior es conocido es corolario de los cocientes de Rayleigh, para una demostración detallada de ver teorema 55 en [The Rayleigh's principle and the minimax principle for the eigenvalues of a self-adjoint matrix](https://people.math.osu.edu/costin.10/5102/Rayleigh%20quotient.pdf)
+El resultado anterior es conocido es corolario de los cocientes de Rayleigh, para una demostración detallada de ver Teorema 55 en [The Rayleigh's principle and the minimax principle for the eigenvalues of a self-adjoint matrix](https://people.math.osu.edu/costin.10/5102/Rayleigh%20quotient.pdf)
 
 \newpage
 
@@ -1333,6 +1354,60 @@ $$I = n (z^{T}Vz)$$ Y como $V$ es simétrica, la escribimos como $V=P^TDP$ usand
 
 $$I = n(z^TP^T D Pz) = n(x^TDx) = n \sum_{i=1}^{n} \lambda_{i}(V) |x_{i}|^2$$ $$\implies |I| \leq n \sum_{i=1}^{n} |\lambda_i (V)| \leq n \sum_{{i,j = 1}}^{n} |v_{ij}| = n $$ $$\implies I \in [-n,n]$$
 
-Sin embargo, usaremos matrices de peso estandarizadas pues son las que mejor se ajustan al modelo, y donde sabemos que el índice de Moran se mueve entre $[-1,1]$.
+Retomando el ejemplo visto en ["Why is Moran's I coming out greater than 1" - StackExchange](https://stats.stackexchange.com/questions/160459/why-is-morans-i-coming-out-greater-than-1) donde $I=3$, vemos que $n = 4$ y entonces $I \in [-n,n]$.
+
+Apesar de este resultado, usamos matrices de peso estandarizadas pues son las que mejor se ajustan al modelo, y donde sabemos que el índice de Moran se mueve entre $[-1,1]$.
 
 Si sabemos el intervalo en el que se mueve $I$ para nuestro modelo, podemos saber que tan significativo es el valor, y por lo tanto que tan presente esta el fenómeno de autocorrelación espacial.
+
+Respecto del valor esperado del índice de Moran bajo cuando suponemos que no hay autocorrelación espacial, consideramos la siguiente hipótesis nula:
+$$H_0: \text{No existe autocorrelación espacial}$$
+Dicha hipótesis consiste en suponer que, dada una permutación de los datos, es decir, cambiando el orden en el que vienen los datos $(x_i)_{i=1}^{N}$, y fijando la matriz de pesos antes del reordenamiento, no se debiese tener un impacto sobre el valor de $I$.
+
+\newpage
+
+Por lo tanto, para un muestreo $x = (x_i)_{i=1}^{N}$, tomamos una permutación $\pi \in S^{N}$ que aplica sobre el conjunto $(x_i)_{i=1}^{N}$ con $S^N$ el grupo simétrico.
+
+Consideramos nuestro espacio de probabilidad $(\Omega, \mathcal{F}, \mathbb{P}) = (S^N, \mathcal{P}(S^N), \mathbb{P_u})$ con $\mathbb{P_u}$ distribución uniforme.
+
+Tenemos entonces
+
+$$\mathbb{E}_{\pi}(I) = \frac{N}{W} \frac{\sum_{i=1}^{N} \sum_{j=1}^{N} w_{ij} ((\pi x)_i - \pi \bar{x})((\pi x)_j - \pi \bar{x})}{\sum _{i=1}^{N} ((\pi x)_i - \pi \bar{x})^2}$$
+
+Claramente, $\pi \bar{x} = \bar{x}$, además haciendo la suma sobre $i$ tenemos
+
+$$\sum _{i=1}^{N} ((\pi x)_i - \pi \bar{x})^2 = \sum _{i=1}^{N} (x_i -  \bar{x})^2$$
+
+Vemos entonces que 
+
+$$\mathbb{E}_{\pi}[((\pi x)_i - \pi \bar{x})((\pi x)_j - \pi \bar{x})] = \mathbb{E}_{\pi}[((\pi x)_i - \bar{x})((\pi x)_j - \bar{x})]$$
+
+Sea $f: S^N \rightarrow \mathbb{R}$ definida por $f(\pi) = ((\pi x)_i - \bar{x})((\pi x)_j - \bar{x})$, y sea luego tenemos
+
+$$\mathbb{E}_{\pi}(f(\pi)) = \sum_{\pi_0 \in S^n} f(\pi_0) \mathbb{P}(\pi = \pi_0)$$
+
+$$ = \sum_{\pi_0 \in S^N} f(\pi) \frac{1}{N!} = \frac{1}{N!} \sum_{\pi \in S^N} ((\pi x)_i - \bar{x})((\pi x)_j - \bar{x})$$
+
+Como $\pi$ es una permutación, entonces $(\pi x)_i  \neq (\pi x)_j$ para $i \neq j$ y además notamos que para $(x_i,x_j)$ fijos existen $(N-2)!$ permutaciones $\pi$ tales que $(x_i,x_j) = ((\pi x)_i, (\pi x)_j)$ para $i \neq j$, por lo tanto
+
+$$\sum_{\pi \in S^N} ((\pi x)_i - \bar{x})((\pi x)_j - \bar{x}) = (N-2)!\sum_{i \neq j} (x_i - \bar{x})(x_j - \bar{x}) $$
+
+Y entonces 
+
+$$\mathbb{E}_{\pi}[((\pi x)_i - \pi \bar{x})((\pi x)_j - \pi \bar{x})] =\frac{(N-2)!}{N!} \sum_{\pi \in S^N} (x_i - \bar{x})(x_j - \bar{x})$$
+
+$$ = \frac{1}{N(N-1)} [ (\sum_{k} x_k - \bar{x})^2 - \sum_{k} (x_k - \bar{x})^2]$$
+
+$$ = \frac{-\sum_{k}(x_k - \bar{x})^2}{N(N-1)}$$
+\newpage
+
+Luego
+
+$$\mathbb{E}_{\pi}(I) = \frac{N}{W} \frac{\sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij} (\frac{-\sum_{k}(x_k - \bar{x})^2}{N(N-1)})}{\sum _{i=1}^{n} (x_i -  \bar{x})^2}$$
+Y por lo tanto
+
+$$\mathbb{E}_{\pi}(I) = - \frac{1}{N-1}$$
+
+Concluimos que de aceptar la hipótesis nula, se espera que 
+
+$$\mathbb{E}(I) = - \frac{1}{N-1}$$
