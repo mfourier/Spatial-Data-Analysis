@@ -41,6 +41,8 @@ library(ggthemes)
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+## Introducción
+
 El presente documento se enfoca en el desarrollo de modelos de predicción de precios de viviendas mediante el uso de datos georreferenciados sobre los cuales aplicaremos técnicas centradas en datos espaciales y modelos de regresión adaptados para tratar la dependencia espacial que poseen estos mismos. Se hace uso del lenguaje de programación R para simulaciones, y se toma como referencia el libro [Analyzing US Census Data - Kyle Walker (2023)](https://walker-data.com/census-r/), para obtener y manipular los datos usados en el modelo. El objetivo de predecir el precio de las viviendas en una determinada ubicación utilizando datos georreferenciados trae consigo una serie de desafíos que debemos enfrentar, tales como: la autocorrelación espacial de los datos, la heterogeneidad espacial, entre otros fenómenos que expondremos, los cuales afectan suposiciones clásicas que se toman en modelos más simples de predicción, como puede ser la identica e independiente distribución de los datos o la homocedasticidad de estos. La combinación de estos conceptos permite obtener modelos precisos y útiles para la toma de decisiones, como puede ser su uso para modelos del mercado inmobiliario.
 
 En el contexto de datos espaciales [@8444678], trabajamos con un conjunto de observaciones de datos asociados con una componente espacial $\{(x(s_i),y(s_i)) | \ i \in \mathbb{N} , 1 \leq i \leq n\}$ donde $n \in \mathbb{N}$ es la cantidad de muestras, $s_i \in \mathbb{R}^{2}$ es un vector de coordenadas espaciales, $x(s_i) \in \mathbb{R}^m$ son las variables explicativas del modelo e $y(s_i) \in \mathbb{R}$ es la respuesta a dichas variables.
@@ -55,11 +57,11 @@ Acorde a la primera ley de la geografía de Tobler W.R: "Todo se relaciona con t
 
 \newpage
 
-Respecto de los desafíos presentes cuando trabajamos con métodos de predicción espacial, abordamos a lo largo del documento los siguientes:
+Respecto de los desafíos presentes en cuanto a métodos de predicción espacial, abordamos los siguientes a lo largo del documento:
 
 -   $\textit{Autocorrelación espacial}$ $\rightarrow$ como indica Tobler con su primera ley de geografía, los datos espaciales no son estadísticamente independientes entre sí, al contrario estos, están correlacionados, y la intensidad de dicha relación depende de la distancia que exista entre estos, siendo mayor cuando los datos están cerca entre sí, dicho fenómeno interviene cuando usamos modelos de predicción que toman por hipótesis una distribución independiente e identica entre los datos, como es el caso de la regresión lineal.
 
--   $\textit{Heterogeneidad espacial}$ $\rightarrow$ cuando fragmentamos el espacio para el análisis de los datos y le asignamos a cada sector algún atributo, los datos que conforman ese sector no siguen una distribución idéntica, por lo que, la función que represente al proceso, se asume constante para las muestras que se generen sobre ese mismo sector, esto se conoce como estacionariedad, y dichas suposiciones permiten simplificar la creación de modelos, sin embargo, cuando no se cumple este principio, como es típico con datos demográficos, puede interferir en la precisión y es por ello que necesitamos técnicas que lidien con procesos no estacionarios.
+-   $\textit{Heterogeneidad espacial}$ $\rightarrow$ cuando fragmentamos el espacio para el análisis de los datos y le asignamos a cada sector algún atributo, los datos que conforman cada zona no siguen una distribución idéntica, modelos clásicos que no toman en cuenta este fenómeno, por medio de la función que represente al proceso, los valores que representan la relación entre los regresores y la variable dependiente, se asumen constantes para los regresores independiente de su posición geográfica, esto se conoce como estacionariedad. Dichas suposiciones permiten simplificar la creación de modelos, sin embargo, cuando no se cumple este principio, como es típico con datos demográficos, puede interferir en la precisión y es por ello que necesitamos técnicas que lidien con procesos no estacionarios.
 
 Para el análisis de datos haremos uso de $\textit{tidycensus}$, paquete de R diseñado para facilitar el proceso de adquisición y manejo de datos sobre la población, proporcionados por la oficina del censo de EE.UU, acompañados de otros paquetes para el uso de modelos de predicción, visualización, entre otros.
 
@@ -145,7 +147,7 @@ Las variables que importamos, y que usaremos para los modelos de predicción, so
 
 -   pct_white : Porcentaje de la población que se identifica como blanco no-hispano, se sigue la misma lógica con pct_black, pct_asian, pct_hispanic.
 
--   percent_ooh : El porcentaje de unidades de vivienda en el tramo censal que están ocupadas por sus propietarios.
+-   percent_ooh : Porcentaje de viviendas en el tramo censal que están siendo ocupadas por sus propietarios.
 
 Los detalles para descargar información de las distintas bases de datos que proporciona *tidycensus* y las distintas variables que tenemos a disposición se encuentran en el **Anexo 3**.
 
@@ -197,7 +199,7 @@ tmap_save(nyc_median_value_hist_tm, "image/nyc_median_value.png", width=1920, he
 
 \newpage
 
-Notamos en el histograma que se presenta una asimetría a la derecha, i.e, existe una población no menor cuyas viviendas poseen un valor mucho mayor a la mediana, usualmente es más facil trabajar con la variable dependiente distribuida como una gaussiana, para ello podemos aplicar una transformación raíz cuadrada, por otro lado tenemos datos sin información, para esto aplicamos herramientas de R para el filtrado.
+Notamos en el histograma que se presenta una asimetría a la derecha, i.e, existe una población no menor cuyas viviendas poseen un valor mucho mayor a la mediana, usualmente es más facil trabajar con la variable dependiente distribuida como una gaussiana, pues en la práctica, permite resolver problemas como los residuos del modelo siguientdo una distribución normal, para ello podemos aplicar una transformación raíz cuadrada, por otro lado tenemos datos sin información, para esto aplicamos herramientas de R para el filtrado.
 
 La distribución de la variable dependiente aplicada esta transformación se ve de la siguiente manera
 
@@ -253,15 +255,9 @@ En esta sección, se exponen métodos para medir la autocorrelación espacial pr
 
 Para medir la autocorrelación espacial presente en los datos, hacemos uso del índice de Moran $I$ [@8444678] [@nikparvar2021], este coeficiente nos entrega una magnitud de la presencia de este fenómeno para $n$ observaciones de una misma variable, donde las muestras poseen una componente espacial.
 
-Definimos el índice de Moran como
+Definimos el índice de Moran como $$I = \frac{\sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij} (y(s_i) - \bar{y})(y(s_j) - \bar{y})}{(\sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij}) \sum _{i=1}^{n} (y(s_i) - \bar{y})^2 /n }$$ O de manera equivalente $$= \frac{n}{W}\frac{\sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij} (y(s_i) - \bar{y})(y(s_j) - \bar{y})}{\sum _{i=1}^{n} (y(s_i) - \bar{y})^2}$$
 
-$$I = \frac{\sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij} (y(s_i) - \bar{y})(y(s_j) - \bar{y})}{(\sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij}) \sum _{i=1}^{n} (y(s_i) - \bar{y})^2 /n }$$
-
-O de manera equivalente
-
-$$= \frac{n}{W}\frac{\sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij} (y(s_i) - \bar{y})(y(s_j) - \bar{y})}{\sum _{i=1}^{n} (y(s_i) - \bar{y})^2}$$
-
-donde $\bar{y} = \sum_{i=1}^{n} y(s_i)/n$ con $n$ el número total de muestras, a partir de ahora, para simplificar la notación, $y(s_i) = y_i$, además $W = \sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij}$, y abusando de la notación, $W = (w_{ij})_{i,j = 1}^{n}$, que consideramos como una $\textbf{matriz de pesos estandarizada}$.
+donde $\bar{y} = \sum_{i=1}^{n} y(s_i)/n$ con $n$ el número total de muestras, a partir de ahora, para simplificar la notación, $y(s_i) = y_i$, además $W = \sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij}$, y simplificando la notación, $W = (w_{ij})_{i,j = 1}^{n}$, que consideramos como una $\textbf{matriz de pesos estandarizada}$, y $y_i = y(s_i)$, dejando implicita la componente espacial.
 
 Entenderemos por $\textbf{matriz de pesos estandarizada}$ aquella que cumple las siguientes propiedades
 
@@ -281,7 +277,7 @@ Este estadístico mide que tan similar es una variable respecto de las variables
 
 -   $I \approx -1 \rightarrow$ Se clusterizan valores distintos entre sí (dispersión perfecta)
 
--   $I \approx 0 \rightarrow$ No existe una clara relación entre los valores de los datos y sus entornos, es decir, no hay pruebas de autocorrelación espacial. 
+-   $I \approx 0 \rightarrow$ No existe una clara relación entre los valores de los datos y sus entornos, es decir, no hay pruebas de autocorrelación espacial.
 
 -   $I \approx 1 \rightarrow$ Se clusterizan valores similares entre sí
 
@@ -293,12 +289,9 @@ Comentando sobre el significado de este valor, al igual que la correlación usua
 
 Dada su estructura, vemos que el índice de Moran es una auto-covarianza espacial estandarizada [@chen2013].
 
-Además, si consideramos la hipótesis nula
-$$H_0: \text{No existe autocorrelación espacial}$$
-En donde suponemos que, dada una permutación de la muestra, es decir, cambiando el orden en el que vienen los datos $(x_i)_{i=1}^{N}$, y fijando la matriz de pesos antes del reordenamiento, no se debiese tener un impacto sobre el valor de $I$, pues estos no muestran relacionarse entre sí, se tiene que 
+Además, si consideramos la hipótesis nula $$H_0: \text{No existe autocorrelación espacial}$$ En donde suponemos que, dada una permutación de la muestra, es decir, cambiando el orden en el que vienen los datos $(x_i)_{i=1}^{N}$, y fijando la matriz de pesos antes del reordenamiento, no se debiese tener un impacto sobre el valor de $I$, pues estos no muestran relacionarse entre sí, se tiene que
 
-$$\mathbb{E}(I) = -\frac{1}{N-1}$$
-Lo que es consistente con el modelo, pues para una muestra grande, de no existir autocorrelación espacial, esperamos que $I \approx 0$
+$$\mathbb{E}(I) = -\frac{1}{N-1}$$ Lo que es consistente con el modelo, pues para una muestra grande, de no existir autocorrelación espacial, esperamos que $I \approx 0$
 
 Luego, podemos usar esta propiedad para inferencias estadísticas por medio del p-valor
 
@@ -306,34 +299,61 @@ Para una demostración detallada de este hecho, ver **Anexo 5**.
 
 \newpage
 
-### Simple Linear Regression
+### Regresión Lineal
 
-Con la data preparada, podemos crear el primer modelo sencillo de regresión lineal, con la variable dependiente, la raiz cuadrada del valor medio de la vivienda ("NYC Median Home Value")
+Planteamos un modelo de regresión lineal para los datos importados, dicho modelo no toma en cuenta las componentes espaciales y nuestro objetivo es observar el efecto que esto tiene en la calidad de la precisión
 
-```{r, results = 'hide'}
-# Fórmula entre variables dependientes y regresores
-formula <- "sqrt(median_value) ~ median_rooms + median_income + 
-pct_college + pct_foreign_born + pct_white + pct_black + pct_hispanic + 
-pct_asian + median_age + percent_ooh + pop_density"
+La formulación del modelo acorde a los datos es la siguiente: $$\sqrt{median \ value} = \alpha + \beta_1(median \ rooms)+ \beta_2(median \ income) +\beta_3(pct \ college)$$ $$ +\beta_4(pct \ foreign \ born) + \beta_5(pct \ white) +\beta_6(median \ age)$$ $$+ \beta_7(percent \ ooh) +\beta_8(pop \ density)+\beta_9(total \ population) + \varepsilon $$ De donde, a partir de $n$ observaciones de la variable dependiente junto a sus regresores, buscamos estimar los valores $\alpha$ y $\beta_i$, mediante mínimos cuadrados, es decir, tenemos para cada observación un error asociado $\varepsilon_i$, y minimizamos $\sum_{i=1}^n \varepsilon_i^2 = \sum_{i=1}^n (y_i - \alpha -\sum_{j=1}^m \beta_j x_{ij})^2$ donde $y_i$ es la observación de la variable independiente, y $x_{ij}$ los $m$ regresores asociados a la observación $i$.
 
-# Regresión lineal mediante lm
-model1 <- lm(formula = formula, data = nyc_data_prepped)
-summary(model1)
+Un modelo de regresión lineal requiere de una serie de hipótesis para asegurar la calidad de las estimaciones de $\beta$ (supuestos de Gauss-Márkov) tales como: 
+
+* **Linearidad**: Los regresores poseen una relación lineal con la variable de respuesta
+
+-   **Independencia**: Las observaciones representan una muestra aleatoria distribuida identica e independiente, de manera que es generalizable para el total de la población
+
+-   **Error con media cero**: Consideramos el error de cada observación $\varepsilon_i$ variable aleatoria tal que $\mathbb{E}(\varepsilon_i) =0$
+
+-   **Normalidad**: Suponemos que $\varepsilon_i$ sigue una distribución normal de la forma $\varepsilon_i \sim \mathcal{N}(0,\sigma^2)$
+
+-   **Homocedasticidad e incorrelación**: Los errores del observaciones del modelo poseen la misma varianza $\sigma^2$ y son tales que $Cov(\varepsilon_i , \varepsilon_j)$.
+
+Realizando un análisis exploratorio visualizamos una tendencia lineal en los datos entre los regresores y $\sqrt{median \ value}$
+
+```{r, echo=FALSE, message=FALSE, results='hide'}
+### transparent colors function
+t_col <- function(color, opacity = 0.5) {
+  rgb.val <- col2rgb(color)
+  t.col <- rgb(rgb.val[1], rgb.val[2], rgb.val[3], max = 255, alpha = (opacity)*255)
+  invisible(t.col)
+}
 ```
 
-```{r, echo = FALSE, fig.align = 'center', out.width="100%"}
-# Coeficientes del modelo
-#summary(model1)
-knitr::include_graphics("image/lmmodel.png")
+```{r, echo=FALSE, out.width='60%', fig.align='center'}
+# Ploteamos 4 regresores
+par(mfrow = c(2, 2))
+
+# Plots
+plot(nyc_data_prepped$pct_college, sqrt(nyc_data_prepped$median_value), xlab = "Percentage College (%)", ylab = "Sqrt Median Home Value ($)", col=t_col("black",0.4))
+abline(lm(sqrt(nyc_data_prepped$median_value) ~ nyc_data_prepped$pct_college))
+
+plot(nyc_data_prepped$median_income, sqrt(nyc_data_prepped$median_value), xlab = "Median Income ($)", ylab = " Sqrt$ Median Home Value ($)", col=t_col("black",0.4))
+abline(lm(sqrt(nyc_data_prepped$median_value) ~ nyc_data_prepped$median_income))
+
+plot(nyc_data_prepped$pct_white, sqrt(nyc_data_prepped$median_value), xlab ="Percentage White (%)",ylab = "Sqrt Median Home Value ($)", col=t_col("black",0.4))
+abline(lm(sqrt(nyc_data_prepped$median_value) ~ nyc_data_prepped$pct_white))
+
+plot(nyc_data_prepped$median_rooms, sqrt(nyc_data_prepped$median_value), xlab = "Median Rooms",ylab = "Sqrt Median Home Value ($)", col=t_col("black",0.4))
+abline(lm(sqrt(nyc_data_prepped$median_value) ~ nyc_data_prepped$median_rooms))
+
+mtext("Linearidad",                   
+      side = 1,
+      line = - 2,
+      outer = TRUE)
 ```
 
 \newpage
 
-Aquellas variables con mayor p-value son pct_foreign_born, median_age, pop_density, un p valor alto nos dice que la variable no tiene mucha significancia en el resultado (típicamente pedimos que sea menor a 0.05 para que la variable se considere significativa), notamos tambien que las primeras dos variables se correlacionan negativamente con median_value, es decir, a mayor cantidad de nacidos extranjeros y edad promedio, se tiene que el valor medio de la vivienda disminuye. Al contrario, si aumenta la densidad poblacional, notamos que el valor medio de la vivienta aumenta, podemos ver tambien el valor $R^2$ el cual nos dice que un $0.4124$% de la varianza de median_value es explicado con las variables del modelo (el modelo es deficiente).
-
-En la regresión lineal, los errores no son independientes en un modelo con componentes espaciales, esto es porque la autocorrelación espacial está presente en el error, lo que nos dice que el performance del modelo depende de la posición geográfica.
-
-Haciendo uso de la librería $\textbf{corrr}$ podemos calcular la matriz de correlaciones [@walker2023a]
+Además, para el análisis de datos, el paquete *corrr*, nos permite calcular la matriz de correlación asociada [@walker2023a]
 
 ```{r, warning=FALSE, message=FALSE}
 library(corrr)
@@ -348,27 +368,62 @@ correlations[is.na(correlations)] <- 0
 
 ```
 
-```{r, echo = FALSE, fig.align = 'center', out.width="85%"}
+```{r, echo = FALSE, fig.align = 'center', out.width="60%"}
 # view model statistics
 knitr::include_graphics("image/correlations.png")
 ```
 
-\newpage
+Y podemos visualizar esta información haciendo uso de network_plot()
 
-Y lo visualizamos haciendo uso de network_plot()
-
-```{r}
+```{r, fig.align = 'center', out.width="60%"}
 network_plot(correlations)
 ```
 
+En donde vemos el tipo de correlación que tienen los regresores entre sí.
+
+Se puede realizar un análisis de componentes principales (PCA) con el fin de disminuir la dimensionalidad del problema, en donde reducimos la cantidad de regresores tomando combinaciones lineales de estos, ver *sección 8.2.5: 'Dimension reduction with principal components analysis'* de *Analyzing US Census Data*
+
 \newpage
 
-Nos interesa además los residuos del modelo, pues esperamos que estos sean explicados cuando tomamos en cuenta el fenómeno de spatial autocorrelation , para obtenerlos y añadirlos a nuestra data, seguimos como en la sección 8.3 de Analyzing US Census Data
+Para la calibración de los parámetros $\beta$ y $\alpha$ del modelo de regresión lineal, podemos usar la función *lm* que viene incluida con los paquetes básicos del lenguaje R.
+
+```{r, results = 'hide'}
+# Fórmula entre variables dependientes y regresores
+formula <- "sqrt(median_value) ~ median_rooms + median_income + 
+pct_college + pct_foreign_born + pct_white + pct_black + pct_hispanic + 
+pct_asian + median_age + percent_ooh + pop_density"
+
+# Regresión lineal mediante lm
+model1 <- lm(formula = formula, data = nyc_data_prepped)
+summary(model1)
+```
+
+```{r, echo = FALSE, fig.align = 'center', out.width="70%"}
+# Coeficientes del modelo
+#summary(model1)
+knitr::include_graphics("image/lmmodel.png")
+```
+
+Haciendo uso de esta función, obtenemos el valor de los coeficientes buscados, el estimado de la variable 'Intercept' se corresponde al valor de $\alpha$ mientras que el estimado del resto de variables se corresponde a los $(\beta_i)_{i=1}^{m}$ asociados.
+
+La columna '$P(>|t|)$' corresponde al **p-valor**, un p-valor alto nos dice que la variable no es significativa en el resultado, típicamente pedimos que sea menor a 0.05 para que la variable se considere significativa, los grados de significancia para el modelo vienen jerarquizados como dice 'Signif. codes', es decir, cuando el p-valor es menor a $0.001$, consideramos que el regresor es altamente significativo en el modelo, menos significativo si el p-valor esta entre $0.001$ y $0.01$ y así sucesivamente.
+
+Aquellas variables con mayor p-value son pct_foreign_born, median_age, pop_density, notamos tambien que las primeras dos variables se correlacionan negativamente con median_value, es decir, a mayor cantidad de nacidos extranjeros y edad promedio, se tiene que el valor medio de la vivienda disminuye. Al contrario, si aumenta la densidad poblacional, tenemos que el valor medio de la vivienta aumenta.
+
+\newpage
+
+Observando el valor $R^2$, coeficiente que mide el porcentaje de varianza de la variable dependiente que es explicado con las variables del modelo, vemos que es de un $0.4569$, este valor nos revela que **el modelo es deficiente para la predicción**, una de las razones de esto es debido a la autocorrelación espacial existente en los datos.
+
+Para hacer cuenta de esto último, se estudian los residuos del modelo, que se corresponden a la diferencia entre el valor observado y el valor predicho por el modelo ya entrenado, para ello hacemos uso de la función residuals().
 
 ```{r}
 #Añadimos los residuos a la data que estamos trabajando
 nyc_data_prepped$residuals <- residuals(model1)
+```
 
+Visualizamos un histograma para ver la distribución que siguen los residuos
+
+```{r, echo = FALSE, fig.align = 'center', out.width="85%"}
 #Plot
 ggplot(nyc_data_prepped, aes(x = residuals)) + 
   geom_histogram(bins = 100, alpha = 0.5, color = "navy",
@@ -378,13 +433,9 @@ ggplot(nyc_data_prepped, aes(x = residuals)) +
 
 \newpage
 
-### Spatial Weights Matrix
+Vemos que los residuos siguen aparentemente una distribución normal, como se mencionó antes, en la práctica, realizar una transformación de la variable dependiente con el fin de que siga una distribución normal suele ayudar en la distribución de los residuos [@walker2023a], sin embargo, la suposición de independencia de los residuos comúnmente se viola en los modelos que utilizan datos espaciales. Esto se debe a que estos modelos de comúnmente se caracterizan por la autocorrelación espacial presente en el término de error, lo que significa que el rendimiento del modelo en sí mismo depende de la ubicación geográfica.
 
-**Continuar**: Reordenar, mandar códigos al anexo, redactar mejor
-
-Seguimos el modelo, para esta parte nos guiamos con el capítulo 7 [Analyzing US Census Data - Spatial analysis with US Census Data](https://walker-data.com/census-r/spatial-analysis-with-us-census-data.html)
-
-Buscamos armar una matriz de pesos, para medir la interacción entre cada tramo censal, para ello generamos una "neighborhood list" en R con el paquete $\textbf{spdep}$ usando la función poly2nb(), esta función nos presenta varias formas de catalogar a los vecinos, para el modelo usaremos
+Podemos evaluar esto utilizando el índice de Moran, buscamos armar una matriz de pesos, para medir la interacción entre cada tramo censal, para ello generamos una "neighborhood list" en R con el paquete $\textbf{spdep}$ usando la función poly2nb(), esta función nos presenta varias formas de catalogar a los vecinos, para el modelo usaremos
 
 -   $\textit{Contiguity-based neighbors} \rightarrow$ se usa cuando la geometría es tipo polygon, las opciones incluyen neighbors tipo "Queen", que se basa en que todos los polygons que compartan un vértice se consideren vecinos, y neighbors tipo "Rook", en donde deben compartir al menos un segmento de linea para ser vecinos, podemos inferir que neighbors tipo "Queen" abre diagonales de manera que tiene menos entradas iguales a cero
 
@@ -394,7 +445,7 @@ nyc_nb <- spdep::poly2nb(nyc_data_prepped, queen = TRUE)
 nyc_nb
 ```
 
-```{r, echo = FALSE, fig.align = 'center', out.width="100%"}
+```{r, echo = FALSE, fig.align = 'center', out.width="80%"}
 knitr::include_graphics("image/neighborlist.png")
 ```
 
@@ -410,9 +461,9 @@ Interpretamos la información de la siguiente manera
 
 \newpage
 
-Podemos hacer un plot de la estructura que posee el objeto "neighborhood list", para visualizarlo usamos funciones descritas en Analyzing US Census.
+Podemos hacer un plot de la estructura que posee el objeto "neighborhood list".
 
-```{r, results='hide', warning=FALSE, message=FALSE}
+```{r, echo=FALSE, results='hide', warning=FALSE, message=FALSE}
 
 # Filtramos para visualizar condado de Bronx
 bronx <- nyc_data_prepped[str_detect(nyc_data_prepped$NAM, "Bronx"),]
@@ -430,7 +481,7 @@ bronx_nb_rook <- spdep::poly2nb(bronx, queen=FALSE)
 
 ```
 
-```{r, results='hide', warning=FALSE, message=FALSE}
+```{r, echo=FALSE, results='hide', warning=FALSE, message=FALSE}
 # save plot 
 jpeg("image/bronx_neighborhood_rook_queen.jpg", width = 1000, height = 800)
 
@@ -461,21 +512,13 @@ plot(bronx_nb_rook, bronx_centroids,
 dev.off()
 ```
 
-\newpage
-
-Guardada la imagen con las conexiones entre cada distrito censal con los modelos "Queen" y "Rook" procedemos a mostrar los plots.
-
-```{r, echo = FALSE, fig.align = 'center', out.width="80%"}
+```{r, echo = FALSE, fig.align = 'center', out.width="90%"}
 knitr::include_graphics("image/bronx_neighborhood_rook_queen.jpg")
 ```
 
 En efecto, observamos la presencia de conexiones diagonales para el modelo "Queen" a diferencia de la estructur de "Rook", así como en ajedrez, la reina puede moverse en todas direcciones, mientras que la torre solo puede moverse en vertical y horizontal.
 
-\newpage
-
-### Test de Índice de Moran
-
-Dadas la "neighborhood list" antes dada, podemos usarla para crear una matriz de pesos (spatial weights list) $W$ usando la función de spdep nb2listw(), que nombramos wts, además para realizar el test de Índice de Moran, necesitamos ignorar aquellos datos que no posean vecinos, para ello usamos la librería spatialreg para verificar que se tiene activado la opción zero.policy que nos permite ignorar estos datos.
+Dada la "neighborhood list" creada, se usa para crear una matriz de pesos $W$ usando la función de *spdep* nb2listw(), que nombramos *wts*, con ella se realiza un test de Índice de Moran.
 
 ```{r, results='hide', warning=FALSE, message=FALSE}
 # create spatial weights matrix
@@ -486,40 +529,38 @@ get.ZeroPolicyOption()
 wts <- spdep::nb2listw(nyc_nb)
 ```
 
-Visualizando a wts
+\newpage
 
-```{r, echo = FALSE, fig.align = 'center', out.width="80%"}
+Visualizando la matriz de pesos creada, guardado como *wts*
+
+```{r, echo = FALSE, fig.align = 'center', out.width="70%"}
 knitr::include_graphics("image/matrix.png")
 ```
 
-Vemos que es una matriz cuyas filas tienen por suma total 1 (row normalized)
+Vemos que es una matriz cuyas filas tienen por suma total 1, por ende una matriz de pesos estandarizada, la cual para cada distrito, le da mismo peso a cada vecino que posea.
 
-\newpage
-
-Con ella podemos realizar un test de Índice de Moran para observar autocorrelación espacial, para ello hacemos uso de la variable de residuos obtenida en secciones anteriores
+Con ella podemos realizar un test de índice de Moran, con el fin de verificar si existe autocorrelación espacial en los residuos del modelo, pues dado el caso, la muestra usada en el modelo no cumple ser distribuida identica e independientemente, explicando parte de la deficiencia del modelo de regresión lineal e implicando que el rendimiento del modelo dependa de la ubicación geográfica.
 
 ```{r, results = 'hide'}
 # perform Moran's I test 
 spdep::moran.test(nyc_data_prepped$residuals, wts)
 ```
 
-```{r, echo = FALSE, fig.align = 'center', out.width="85%"}
+```{r, echo = FALSE, fig.align = 'center', out.width="75%"}
 knitr::include_graphics("image/moranlm.png")
 ```
 
-Notamos el p-value $< 2.2e-16$ lo que nos habla de la significancia que posee en el modelo
+Tenemos un valor de $I = 0.345$, el cual es estadísticamente significativo (Walker K., 1970)[@walker2023a], en efecto, el valor esperado de $I$ bajo la hipótesis nula $H_0$ de no autocorrelación es de $-0.00051$, el p-valor $< 2.2e-16$ lo que nos habla de la significancia que posee en el modelo.
 
-Además, vemos que el índice de Moran tiene un valor positivo, lo que nos dice que en el mapa, distritos censales con atributos similares tienden a agruparse (clusters).
+El test de índice de Moran concluye aceptar la hipótesis alternativa
 
-En efecto, podemos apreciar como en NYC, con la variable "Median Home Value" se forman agrupaciones de distritos en ciertos sectores del estado que comparten la cualidad de tener un alto valor de la vivienda, y a su vez, otros sectores con distritos que comparten tener un bajo nivel de la vivienda.
-
-Un índice de Moran de $I = 0.345$ es estadísticamente significativo (Walker K., 1970)[@walker2023a]
+Por lo demás, vemos que el índice de Moran tiene un valor positivo, lo que nos dice que en el mapa, distritos censales con atributos similares tienden a agruparse (clusters).
 
 \newpage
 
-Observamos los residuos, hacemos uso de la función lag.listw() la cual nos toma en cuenta los residuos del modelo junto a la matriz de peso que estamos añadiendo.
+Mediante un *Moran scatterplot*, que consta de un gráfico de datos espaciales comparando los valores de una variable de respuesta $Y$ con sus valores 'lagged', que denotamos $Y_{lag} = WY$, el cual es una versión ponderada de las observaciones vecinas de cada punto, se usa función lag.listw(), junto a la matriz de pesos *wts* y los residuos del modelo.
 
-```{r, warning=FALSE, message=FALSE}
+```{r, echo=FALSE, fig.align = 'center', out.width="75%", warning=FALSE, message=FALSE}
 # get lagged version of residuals for plot
 nyc_data_prepped$lagged_residuals <- 
 lag.listw(wts, nyc_data_prepped$residuals)
@@ -536,151 +577,126 @@ ggsave("image/morans_i_res.png",
        plot = morans_i_res)
 ```
 
-\newpage
+El plot muestra en el eje horizontal los residuo del modelo, y en el eje vertical, la versión ponderada por la matriz de pesos de los residuos, en donde observamos una **correlacíon positiva**, esto significa que cuando el residuo de un distrito crece, entonces un promedio ponderado de sus alrededores tiende a crecer, en otras palabras, el error del modelo toma valores similares respecto de los valores que toma en sus alrededores, dando cuenta de la autocorrelación en los términos del error, lo que **sugiere rechazar la independencia en los residuos del modelo**.
 
-El plot muestra una correlación positiva entre el fenómeno de autocorrelación espacial y los residuos, lo que sugiere rechazar la independencia en los términos del error pue s existe autocorrelación espacial en los residuos.
+Motivados por lo anterior, hacemos uso de modelos de regresión que toman en cuenta la autocorrelación espacial presente en los datos, considerando la matriz de pesos que da cuenta de la magnitud de la dependencia espacial.
 
-Para trabajar este problema, tenemos métodos para tratar con regresión espacial
+-   Para los códigos utilizados en el modelado de imágenes, ver **Anexo 6**
 
-Para complementar, ver el Capítulo 8 del libro [Analyzing US Census Data - Modeling US Census Data](https://walker-data.com/census-r/modeling-us-census-data.html) (Walker K., 2023)[@walker2023a], capítulo donde se estudian conceptos durante la primera sección como indices de segregación y diversidad los cuales son usados en ciencias sociales para explicar patrones demográficos, en la segunda sección se estudian tópicos en modelamiento estadístico, incluyendo métodos de regresión con atributos espaciales, en donde tomamos en cuenta conceptos como la autocorrelación espacial que está inherente en la mayoría de las variables del censo; en la tercera sección del capítulo se estudian conceptos como clasificación, clusterización y regionalización, que son comunes en técnicas de Machine Learning.
+-   Para profundizar en el uso de matrices de peso, ver **Capítulo 7** ['Analyzing US Census Data - Spatial analysis with US Census Data'](https://walker-data.com/census-r/spatial-analysis-with-us-census-data.html)
 
-## Spatial Regression Model
-
-**Continuar**
-En está sección se aplica el dataset junto a 5 modelos distintos de regresión espacial con los diferentes paquetes que proporciona R.
-
-Cada uno de ellos son adaptaciones de distintas técnicas de Machine Learning para hacer frente a los problemas asociados a data espacial.
-
-### Simultaneous Autoregressive (SAR) models
-
-Los siguientes dos modelos SAR que vienen incluidos en el paquete $\textbf{spatialreg}$ se enfocan en añadir términos para abordar la autocorrelación espacial
-
--   spatialreg::lagsarlm() $\rightarrow$ da cuenta de la dependencia espacial al incluir un "spatial lag" de la variable dependiente (outcome) del modelo. Esto explica los efectos indirectos espaciales de los valores de los vecindarios (neighboring areas) que influyen en los valores dentro de una ubicación determinada.
-
--   spatialreg::errorsarlm() $\rightarrow$ incluye "spatial lag" en el la medida del error del modelo. Esto está diseñado para capturar procesos espaciales latentes que no se tienen en cuenta en la estimación del modelo y, a su vez, aparecen en los residuos del modelo.
-
-A pesar de que estos modelos dan cuenta de la autocorrelación espacial, asumen que todos los coeficientes son iguales y, por lo tanto, no abordan la heterogeneidad espacial (spatial heterogeneity) que es otra problemática asociada a la data espacial como se vió en secciones anteriores. Por el contrario, el método Geographically Wighted Regression (GWR) toma en cuenta la heterogeneidad espacial.
+-   Para complementar en el análisis de datos, ver el **Capítulo 8** ['Analyzing US Census Data - Modeling US Census Data'](https://walker-data.com/census-r/modeling-us-census-data.html), capítulo donde se estudian conceptos durante la primera sección como indices de segregación y diversidad los cuales son usados en ciencias sociales para explicar patrones demográficos, en la segunda sección se estudian tópicos en modelamiento estadístico, incluyendo métodos de regresión con atributos espaciales, en donde tomamos en cuenta conceptos como la autocorrelación espacial que está inherente en la mayoría de las variables del censo; en la tercera sección del capítulo se estudian conceptos como clasificación, clusterización y regionalización, que son comunes en técnicas de Machine Learning.
 
 \newpage
 
-### Geographically Weighted Regression (GWR)
+## Modelos de regresión espacial
 
-Los siguientes dos modelos abordan la heterogeneidad espacial mediante GWR, aprendiendo un conjunto de parámetros del modelo en cada ubicación. Los inconvenientes son el coste computacional y la suposición de "spatial isotropy". La isotropía espacial es la suposición de que, independientemente de la dirección en que nos movamos, las propiedades son las mismas.
+Aplicamos cuatro modelos distintos de regresión espacial con los distintos paquetes que proporciona R.
 
--   GWModel::gwr.basic() $\rightarrow$ modelo simple de regresión ponderada geográficamente (geographically weighted regression) diseñado para evaluar las variaciones locales en los resultados de los modelos de regresión dada una función de pesos. Típicamente funciones que decaen con la distancia.
+Cada uno de ellos son adaptaciones de distintas formulaciones que consideran una matriz de pesos para hacer frente a los problemas asociados a data espacial.
 
--   spgwr::gwr() $\rightarrow$ implementa el enfoque básico de regresión ponderada geográficamente (GWR) para explorar la "no estacionariedad espacial" para un ancho de banda global dado y un esquema de ponderación elegido (weighting scheme).
+Consideramos primero dos modelos autorregresivos, los cuales vienen incluidos en el paquete $\textbf{spatialreg}$ que se enfocan en añadir términos para abordar la autocorrelación espacial
 
-### Geographically Weighted Random Forest (GRF)
+### Spatial Lag Model
 
-El siguiente modelo aborda la heterogeneidad espacial o, más específicamente, la "no estacionariedad" espacial de los datos, mediante el uso de una versión local de algoritmos de Machine Learning. Según la documentación del paquete, la diferencia entre un GWR lineal y un GRF es que podemos modelar la "no estacionariedad" junto con un modelo no lineal, lo que vuelve menos restríctiva la función que queremos modelar.
+El modelo de 'lag' espacial tiene en cuenta la dependencia espacial al incluir una variable de 'retraso' sobre el resultado del modelo. Al hacerlo, se tienen en cuenta los efectos de dependencia espacial, es decir, la posibilidad de que los valores en áreas vecinas influyan en los valores en una ubicación determinada. Más precisamente, el modelo tiene la formulación
 
--   SpatialMl::grf() $\rightarrow$ implementa una extensión espacial del algoritmo de Random Forest (RF) que incluye un "bosque aleatorio ponderado geográficamente" en un conjunto de modelos locales.
+$$ Y = \alpha + \rho WY + X \beta + \varepsilon$$ Donde formulamos el valor de la respuesta $Y$ como una versión ponderada por los valores que toma la respuesta en los alrededores de cada dato, sumado a una dependencia lineal que tenga la variable $Y$ con los regresores $X$, tomando $W$ una matriz de pesos estandarizada y $\rho$ refleja la intensidad de la dependencia espacial.
+
+Para visualizarlo más claramente, vemos para cada fila tenemos $$Y_i = \alpha_i + \rho Y_{lag-i} + \sum_{k} \beta_k X_{ik} + \varepsilon_i \ \ \forall i \in \{1,...,n\}$$ Donde $$Y_{lag-i} = \sum_{j}w_{ij} Y_j$$ Por lo que, la variable $Y_{lag-i}$ representa una versión ponderada de los valores que toman las respuestas $Y_j$ que son vecinas de la respuesta $Y_i$, es decir, aquellos $Y_j$ tales que $w_{ij} \neq 0$.
+
+Podemos ver este modelo como una versión ponderada por por el término $(I- \rho W)^{-1}$ sobre el valor esperado $\alpha + X\beta$ y el residuo del modelo de una regresión lineal clásica [@8444678], basta notar que
+
+$$Y = \alpha + \rho WY + X \beta + \varepsilon$$ $$\implies Y - \rho WY = \alpha + X \beta + \varepsilon$$ $$\implies (I-\rho W)Y = \alpha + X \beta + \varepsilon$$ $$\implies Y = \alpha' + (I- \rho W)^{-1} X \beta + (I- \rho W)^{-1}\varepsilon$$
+
+Para estimar los parámetros de este modelo, podemos usar el método de máxima verosimilitud, usaremos en este caso funciones incluidas en el paquete *spatialreg*.
 
 \newpage
 
-## Aplicación de modelos espaciales
-
-### SAR models
-
-**[Redactar intuición de los modelos, matraquear un poco, ]**
-
-**Lag Model**
-$$ Y = \alpha + \rho WY + X \beta + \varepsilon$$
-Por fila $i$
-$$Y_i = \alpha_i + \rho Y_{lag-i} + \sum_{k} \beta_k X_{ik} + \varepsilon_i$$
-
-$$Y_{lag-i} = \sum_{j}w_{ij} Y_j$$ 
-
-**Errormodel**
-
-$$ Y_i = \alpha \sum_{k} \beta_{k}X_{ik} + u_i$$ donde
-
-$$u_i = \lambda u_{lag-i} + \varepsilon_i$$ y
-
-$$u_{lag-i} = \sum_{j} w_{ij} u_{j}$$
-
-Con el paquete $\textbf{spatialreg}$ hacemos uso de lagsarlm(), el formato para crear el modelo es similar a los usados en SLR, usamos como parámetro listw (spatial weights list) nuestra variable wts creada para el test de índice de Moran.
+Con el paquete $\textbf{spatialreg}$ hacemos uso de lagsarlm(), el formato para crear el modelo es similar a los usados en la regresión lineal, usamos como parámetro nuestra matriz de pesos *wts*.
 
 ```{r, results = 'hide'}
-# lag model
 lag_model <- spatialreg::lagsarlm(
   formula = formula, 
   data = nyc_data_prepped, 
   listw = wts,
   zero.policy=TRUE #Importante  omitir valores NA
-)
-
+  )
 summary(lag_model, Nagelkerke = TRUE)
 ```
 
-```{r, echo = FALSE, fig.align = 'center', out.width="80%"}
+```{r, echo = FALSE, fig.align = 'center', out.width="60%"}
 knitr::include_graphics("image/lagsarlm.png")
 ```
 
+Al igual que el modelo de regresión lineal se nos entregan los valores de $\alpha$ (intercept) y los $\beta_i$ asociados a cada regresor, junto a sus p-valores, lo que nos permite hacer un análisis de la significancia que tiene cada regresor en el modelo, por ejemplo, para este modelo vemos que la densidad poblacional no es un factor importante en el modelo, al igual que el porcentaje de extranjeros nacidos (pct_foreign_born), mientras que factores como el ingreso promedio (median_income) o el porcentaje de viviendas en el tramo censal que están siendo ocupadas por sus propietarios (percent_ooh) resultan ser cruciales en la predicción, respecto de esto útlimo, vemos que estas relaciones estadísticas se mantienen significativas en comparación al modelo de regresión lineal, mientras que otras como la cantidad de habitaciones promedio en el tramo censal (median_room) aumentan su p-valor.
+
 \newpage
 
-Por otra parte, usando errorsarlm()
+Además, el modelo calibra el valor de $\rho$, que refleja la intensidad de la matriz $W$, este toma un valor positivo y estadísticamente significativo, pues su p-valor es del orden de $2.22 \times 10^{-16}$, lo que sugiere la dependencia espacial, el modelo además entrega un test de autocorrelación en los residuos del modelo, en donde indíca un p-valor de $0.227$ que habla de la poca significancia que tiene el fenómeno en los residuos del modelo bajo esta nueva formulación.
+
+El argumento 'Nagelkerke = TRUE' calcula un valor de pseudo-R cuadrado, que es mayor al valor correspondiente para el modelo de regresión lineal, con un valor de $0.59$.
+
+Los valores de pseudo R-cuadrado no son directamente comparables al R-cuadrado de los modelos de mínimos cuadrados. Tampoco se pueden interpretar como la proporción de la variabilidad en la variable dependiente que es explicada por el modelo. En cambio, las medidas de pseudo R-cuadrado son medidas relativas entre modelos similares que indican qué tan bien el modelo explica los datos.
+
+### Spatial Error Model
+
+En contraste con el modelo de Spatial Lag, los modelos de error espacial incluyen un 'lag' en el término de error del modelo. Esto está diseñado para capturar procesos espaciales latentes que actualmente no se están teniendo en cuenta en la estimación del modelo y, a su vez, aparecen en los residuos del modelo [@walker2023a].
+
+El modelo de error espacial se puede escribir de la siguiente manera:
+
+$$ Y = \alpha + X \beta + u$$ Donde u es un término autorregresivo de la forma $$u = \lambda u_{lag} + \varepsilon$$ Y $$u_{lag} = Wu \implies u = \lambda Wu + \varepsilon$$ Es decir, para cada fila
+
+$$ Y_i = \alpha + \sum_{k} \beta_{k}X_{ik} + \lambda u_{lag-i} + \varepsilon_i$$ Donde $$u_i = \lambda u_{lag-i} + \varepsilon_i \ , \ u_{lag-i} = \sum_{j} w_{ij} u_{j}$$ Por lo que buscamos calibrar $\lambda$ y $u$ con un modelo de la forma $$Y_i = \alpha + \sum_{k} \beta_{k}X_{ik} + \lambda \sum_{j} w_{ij} u_{j} + \varepsilon_i $$
+
+Notemos que llegamos a una formulación similar al caso del modelo Lag, sin embargo buscamos calibrar $u$ que se incluye en el término del error al considerarlo de la forma $u = \lambda Wu + \varepsilon$.
+
+\newpage
+
+Para la calibración de parámetros, hacemos uso de la función errorsarlm de *spatialreg*
 
 ```{r, results='hide'}
-# error model
 error_model <- spatialreg::errorsarlm(
   formula = formula, 
   data = nyc_data_prepped, 
   listw = wts,
   zero.policy=TRUE
 )
-
 summary(error_model, Nagelkerke = TRUE)
 ```
 
-```{r, echo = FALSE, fig.align = 'center', out.width="85%"}
+```{r, echo = FALSE, fig.align = 'center', out.width="65%"}
 knitr::include_graphics("image/errormodellm.png")
 ```
 
-\newpage
+La calibración entrega un modelo cuyo pseudo-$R^2$ es de $0.589$, el cual es ligeramente menor al pseudo-$R^2$ del modelo Lag, al igual que en el caso del modelo Lag, *spatialreg* entrega los parámetros del modelo en el mismo formato..
 
-Podemos hacer una comparación entre el primer modelo SLR y estos dos nuevos modelos usando el paquete $\textbf{jtools}$ y $\textbf{huxtable}$ usando la función export_summs()
+Vemos que el valor que toma $\lambda$ es estadísticamente significativo, con una magnitud de $\lambda = 0.667$ y un bajo p-valor, esto da cuenta nuevamente de la importancia de considerar la autocorrelación espacial del modelo
 
-```{r, results='hide', message=FALSE, warning=FALSE}
-#compare simple linear model with SAG models
-library(jtools)
-library(huxtable)
-jtools::export_summs(model1, lag_model, error_model)
-```
+Los modelos de lag espacial y de error espacial ofrecen enfoques alternativos para tener en cuenta los procesos de autocorrelación espacial al ajustar modelos.
 
-```{r, echo = FALSE, fig.align = 'center', out.width="85%"}
-knitr::include_graphics("image/modelcomparing.png")
-```
-
-Notamos que en cuando al test de $R^2$, estadística que mide la proporción de varianza de la variable dependiente explicada por las variables independientes que usamos en el modelo de regresión, se tiene acorde al desempeño
-
--   Model 1 - lm() $\rightarrow R^2 = 0.46$
-
--   Model 2 - spatialreg::lagsarlm() $\rightarrow R^2 = 0.63$
-
--   Model 3 - spatialreg::errorsarlm() $\rightarrow R^2 = 0.65$
+Según Walker [@walker2023a], respecto de cual de los dos modelos usar, debe considerarse el contexto del tema en estudio, por ejemplo, si los efectos de dependencia espacial están relacionados con las hipótesis que el analista evalúa, como es el caso del efecto de los valores de las viviendas vecinas en torno al valor de una vivienda, se puede preferir un modelo Lag, por otro lado, si hay factores autocorrelacionados espacialmente y que probablemente influyen en la variable de respuesta $Y$ pero son difíciles de medir cuantitativamente, como puede ser la discriminación o el sesgo racial en el mercado de la vivienda, podría ser preferible un modelo de error espacial.
 
 \newpage
 
-### Test de índice de Moran con modelos auto-regresivos (SAR)
+### Test de Índice de Moran
 
-Dada las propiedades de estos modelos, esperamos una disminución del efecto de autocorrelación espacial en los residuos del modelo, los resultados son los siguientes
+Para complementar, podemos aplicar un test de índice de Moran sobre los residuos de ambos modelos de regresión espacial, para ver si resuelven el problema de la dependencia espacial de los errores.
 
-#### Lag model
+**Spatial Lag Model**
 
-```{r, results = 'hide'}
-# lag model Moran's I test
+```{r, include=FALSE,results = 'hide'}
+# Moran Test Lag Model 
 spdep::moran.test(lag_model$residuals, wts)
 ```
 
-```{r, echo = FALSE, fig.align = 'center', out.width="100%"}
+```{r, echo = FALSE, fig.align = 'center', out.width="80%"}
 knitr::include_graphics("image/moran_lagmodel.png")
 ```
 
-#### Error model
+**Spatial Error Model**
 
-```{r, results='hide'}
+```{r, include=FALSE,results='hide'}
 # error model Moran's I test
 spdep::moran.test(error_model$residuals, wts)
 ```
@@ -689,30 +705,75 @@ spdep::moran.test(error_model$residuals, wts)
 knitr::include_graphics("image/error_moran.png")
 ```
 
-Notamos que en ambos modelos se minimiza el valor que toma el índice de Moran, el p-valor aumenta considerablemente sobre $p>0.05$, lo que disminuye la significancia de la autocorrelación del modelo. En partícular error_model tiene mejor desempeño haciendo frente a la autocorrelación espacial en comparación a lag_model.
+Ambos modelos reducen el índice de Moran, acercandose a su valor esperando bajo la hipótesis nula $H_0$ de no autocorrelación, sin embargo, el modelo de error espacial hace un mejor trabajo sobre la autocorrelación espacial en los residuos, esto pues, si bien los modelos toman valores similares de $I$, el modelo de error espacial asigna un p-valor de $0.99$ al estadístico mientras que en el modelo Lag toma un p-valor de $0.7404$, eliminando por completo la dependencia espacial en el error.
 
 \newpage
 
-### GWR models
+## Comparativa: Regresión Lineal, Lag Model, Error Model
 
-Estudiamos dos modelos de regresión ponderada geográficamente (GWR). Estos modelos abordan el problema de la heterogeneidad espacial aprendiendo un modelo distinto en cada ubicación de punto de datos, creando así parámetros de modelo dependientes de la ubicación.
+Realizamos una comparativa entre el primer modelo de regresión lineal y los dos modelos de regresión espacial que hemos introducido, usando los paquetes $\textbf{jtools}$ y $\textbf{huxtable}$ por medio de la función export_summs().
 
-#### GWModel
+```{r, include=FALSE, results='hide', message=FALSE, warning=FALSE}
+library(jtools)
+library(huxtable)
+jtools::export_summs(model1, lag_model, error_model)
+```
 
-Primero tenemos el modelo gwr.basic() del paquete GWmodel. El preprocesamiento consiste en convertir el conjunto de datos en un objeto SpatialPolygons sp (no admite objetos sf) y en seleccionar un "bandwidth" (ancho de banda). El concepto de "kernel bandwidth" se utiliza en GWR para calcular un modelo de regresión local para cada tramo censal. Se basa en el tipo de kernel, fijo o adaptativo, y en una función que decae con la distancia. El kernel adaptativo utiliza los vecinos más próximos de cada sección censal, mientras que el kernel fijo utiliza una distancia de corte.
+```{r, echo = FALSE, fig.align = 'center', out.width="70%"}
+knitr::include_graphics("image/modelcomparing.png")
+```
 
-La función de reducción de la distancia determina la ponderación de las observaciones con respecto a cada dato. Dado que el tamaño de las secciones censales varía, es preferible utilizar un núcleo adaptativo, ya que garantiza la coherencia de los barrios de toda la región [Spatial Machine Learning - J. Morgan](https://justinmorganwilliams.medium.com/spatial-machine-learning-29137dcd1f5f).
+Dicha función nos permite exportar un resumen de los tres modelos, indicando los valores de los parámetros ya calibrados, la significancia estadística que estos toman usando el p-valor, además de una comparativa adaptada de $R^2$ con el fin de medir la calidad de la precisión que tienen los modelos, mostrando una medida de la varianza de la variable dependiente explicada por medio de los regresores.
+
+\newpage
+
+Respecto de la calidad de predicción según $R^2$, tenemos en orden de menor a mayor desempeño
+
+-   Model 1: Regresión Lineal - lm() $\rightarrow R^2 = 0.46$
+
+-   Model 2: Spatial Lag Model - spatialreg::lagsarlm() $\rightarrow R^2 = 0.63$
+
+-   Model 3: Spatial Error Model - spatialreg::errorsarlm() $\rightarrow R^2 = 0.65$
+
+Por lo que, ambos modelos de regresión espacial, logran una amplia mejoría respecto del modelo de regresión lineal simple.
+
+Los modelos abordados en las secciones anteriores, tanto la regresión lineal como sus adaptaciones espaciales, estiman relaciones globales entre la variable dependiente y sus regresores $(\beta_i)_{i=1}^{m}$, es decir, a pesar de que estos modelos dan cuenta de la autocorrelación espacial, asumen que los coeficientes $\beta$ son iguales para toda ubicación, por lo tanto, no abordan la **heterogeneidad espacial**, ya que los datos que conforman un sector no siguen una distribución idéntica.
+
+Motivados por lo anterior, es razonable suponer que la relación entre los regresores y la variable dependiente que se observa para toda la región, varíe significativamente entre sectores.
+
+\newpage
+
+## Geographically Weighted Regression (GWR)
+
+El siguiente modelo, aborda la heterogeneidad espacial aprendiendo un conjunto de parámetros $\beta_{ik}$ asociado a los regresores del modelo en cada ubicación $s_i$, debido a esto, uno de los inconvenientes de este modelo es el coste computacional, pues para cada regresor, necesitamos entrenar $\beta_{ik}$ para ubicación $s_i$.
+
+Mientras que la formulación de un modelo de regresión lineal, el cual tiene la forma $$Y_i = \alpha_i + \sum_{k=1}^{m} \beta_{k} X_{ik} + \varepsilon_i$$ Con los $\beta_k$ idénticos para cada locación $s_i$, la formulación del modelo de regresión geográficamente ponderado (GWR) para una ubicación $s_i$ dada, se escribe como $$Y_i = \alpha_i + \sum_{k=1}^{m} \beta_{ik} X_{ik} + \varepsilon_i$$ 
+Donde el intercepto $\alpha_i$ , los regresores $(X_{ik})_{k=1}^{m}$, y los errores $\varepsilon_i$ están todos a locación $s_i$.
+
+Por lo demás, los parámetros $\beta_{ik}$ serán coeficientes locales para el regresor $X_k$ con ubicación $s_i$
+
+El coeficiente $\beta(s_h)$ en locación $s_h$ puede entrenarse vía método de mínimos cuadrados ponderados, donde el peso que se le asigna a cada muestra depende de su distancia a $s_h$, es decir, buscamos encontrar $\beta(s_h)$ tal que $$\beta(s_h) = \arg \min _{\beta(s_{h})} \sum_{i} w(s_i,s_h) (y(s_i) - x(s_i)^{T} \beta(s_h))^2$$ donde $y(s_i)$ y $x(s_i)$ son la respuesta y los regresores en locación $(s_i)$ respectivamente, además $w(s_i,s_h)$ es una función que decae con la distancia entre $s_i$ y $s_h$, por ejemplo, podemos tomar $w(s_i,s_h) = \exp (- \frac{1}{2} ||s_i-s_h||_{2}^{2})$ (Jiang, Z 2019) [@8444678]
+
+Para $n$ datos, considerando la notación matricial antes usada, tomando $W=(w(s_i,s_h))_{i,h}^{n}$ como matriz de pesos, y manteniendo implícita la componente espacial, escribimos la calibración de $\beta_h$ vía mínimos cuadrados ponderados como $$\beta(s_h) = \arg \min _{\beta(s_{h})} \sum_{i} w_{ih} (Y_i - \sum _{i=1}^{n} X_{ik} \beta_{ih})^2$$ Podemos calibrar los parametros haciendo uso de los paquetes *GWmodel* y *spgwr*, el modelo se basa en el concepto de *kernel bandwidth* (ancho de banda de kernel) para computar un modelo de regresión local en cada ubicación, el cual se basa en un tipo de kernel, fijo o adaptativo, y asignandole una estructura a $w_{ij}$ que decaiga con la distancia.
+
+Un kernel fijo utiliza una distancia de corte para determinar qué observaciones se incluirán en el modelo local para una ubicación dada , mientras que un kernel adaptativo utiliza los vecinos más cercanos a una ubicación dada [@walker2023a].
+
+Para efectos del código, los tamaños de ancho de banda (un límite de distancia o el número de vecinos más cercanos) pueden ser seleccionados directamente por el usuario; en el paquete *GWmodel*, se nos proporciona la función bw.gwr() que ayuda a elegir un ancho de banda de kernel apropiado mediante validación cruzada.
+
+Para las simulaciones, se hace uso de dicha herramienta, junto a un kernel adaptativo y para la función de pesos, se calcula una función de decaimiento 'bisquare' de la forma $$w_{ij} = 1 - (\frac{d_{ij}^2}{h^2})^2$$ donde $d_{ij}$ es la distancia entre las observaciones en locación $s_i$ y sus vecinos en locación $s_j$, como tomamos un kernel de tipo adaptativo, el valor de $h$ varía, y tomará la distancia entre la ubicación $s_i$ y el vecino más lejano a dicha ubicación.
+
+Con el fin de comparar dos calibraciones del mismo modelo, haremos uso de los métodos *spgwr* el cual implementa un enfoque básico de GWR, para un ancho de banda fijo y un esquema de ponderación que viene dado mientras que *GWModel* optimiza dichos parámetros
+
+**Modelo GWR: GWModel**
+
+Para el método gwr.basic() del paquete GWmodel, debemos consiste convertir el conjunto de datos en un objeto SpatialPolygons sp (no admite objetos sf) y en seleccionar un "bandwidth" (ancho de banda), la estructura del código es la siguiente:
 
 ```{r, results='hide', message=FALSE}
-library(GWmodel)
-library(sf)
-library(tidyverse)
-
-# convert to sp object
+# Convierte a Spatial Polygon 
 nyc_data_prepped_sp <- nyc_data_prepped %>%
   as_Spatial()
 
-# choose bandwidth
+# Optimiza bandwidth
 bw <- bw.gwr(
   formula = formula, 
   data = nyc_data_prepped_sp, 
@@ -720,7 +781,7 @@ bw <- bw.gwr(
   adaptive = TRUE
   )
   
-  # run model
+  # Entrena el modelo
   gw_model <- gwr.basic(
   formula = formula, 
   data = nyc_data_prepped_sp, 
@@ -729,30 +790,38 @@ bw <- bw.gwr(
   adaptive = TRUE
   )
   
-  # save results
+  # Guarda resultados del modelo
   gw_model_results <- gw_model$SDF %>%
   st_as_sf() 
-
 ```
 
 \newpage
 
-Para ver el $R^2$ del modelo, escribimos
+El modelo nos entrega el siguiente resumen de los resultados
 
-```{r}
-# global R2 of gwr.basic from GWModel
-gw_model$GW.diagnostic$gw.R2
+```{r, include =FALSE,results='hide', message=FALSE}
+print(gw_model)
 ```
 
-Podemos observar una medida local del $R^2$ para visualizar en que lugares el modelo posee un mejor desempeño.
+```{r, echo = FALSE, fig.align = 'center', out.width="90%"}
+knitr::include_graphics("image/GWRprint.png")
+```
 
-Primero tenemos que añadir los datos R2 locales al objeto sp. Después de esto podemos utilizar el paquete tmap para crear un mapa para el modelo GWRmodel de salida.
+La tabla *Summary of GWR coefficient estimates* entrega las estadísticas entre las que se mueven los parámetros $\beta_{ik}$, por otro lado, *Model calibration information* resume el tipo de modelo usado, el cual fue de kernel adaptativo con función de decaimiento *bisquare*, junto a la distancia euclidiana.
+
+Además el modelo entrega una medida de $R^2 =0.721$, lo que es una mejoría notable en cuanto a la precisión del modelo, comparado con los modelos de lag y error, los cuales no consideran el problema de la **heterogeneidad espacial**
+
+\newpage
+
+Además, debido a que los coeficientes calibrados tienen asociados una posición geográfica, podemos observar una medida local del $R^2$ respecto del desempeño del modelo, y poder visualizar los sectores en donde predice mejor el modelo.
+
+Primero tenemos que añadir los datos de R2 local al objeto sp, después de esto podemos utilizar el paquete *tmap* para crear un mapa para el modelo *GWRmodel*.
 
 ```{r}
-# gwmodel add to sp object
+# Añadimos la data como objeto sp
 nyc_data_prepped_sp$gwmodel <- gw_model$SDF$Local_R2
 
-# gwmodels
+# Print
 nyc_gw_model <- tm_shape(nyc_data_prepped_sp) +
   tm_fill("gwmodel", 
           palette = "RdBu", 
@@ -763,14 +832,12 @@ nyc_gw_model
 
 \newpage
 
-#### GWR spgwr
+**Modelo GWR: GWModel**
 
-Utilizaremos la función spgwr gwr() para comparar una GWR con la versión del GWmodel. Aquí, si pasamos a la función un objeto sp, no necesitamos pasarle coordenadas.
+Hacemos una comparativa con el modelo calibrado por el paquete *spgwr*, la estructura es la siguiente
 
 ```{r, results='hide', message=FALSE}
-library(spgwr)
-
-# choose bandwidth
+# Optimiza bandwitch
 bw2 <- gwr.sel(formula = formula, 
                data = nyc_data_prepped_sp,
                adapt = TRUE,
@@ -778,7 +845,7 @@ bw2 <- gwr.sel(formula = formula,
                method = "cv",
                verbose = TRUE)
                
-# run model               
+# Entrena modelo               
 spgwr_model <- gwr(formula = formula, 
             data = nyc_data_prepped_sp,
             adapt = bw2,
@@ -786,76 +853,82 @@ spgwr_model <- gwr(formula = formula,
             hatmatrix = TRUE)
 ```
 
-En este caso, el modelo arroja un R2 "cuasiglobal", que debemos calcular. Basta con restar 1 a la división de las sumas de cuadrados residuales (RSS) entre las sumas de cuadrados totales (TSS):
+Al ejecutar el código, se nos entrega la siguiente tabla resumen del modelo
 
-```{r}
-# calculate quasi-global R2
-spgwr_model$LocalR2 <- (1 - (spgwr_model$results$rss/spgwr_model$gTSS))
+```{r, echo = FALSE, fig.align = 'center', out.width="70%"}
+knitr::include_graphics("image/spgwrResume.png")
 ```
+
+Al igual que con el método *GWModel*, nos entregan estadísticas respecto de los valores que toman los regresores para las distintas locaciones acompañado de otros coeficientes, como $R^2$, la suma del cuadrado de los residuos, entre otros parámetros asociados.
 
 \newpage
 
-Hacemos lo mismo que antes con la visualización GWModel
+El modelo arroja un valor 'cuasi-global' de $R^2 = 0.72$, lo que es imperceptiblemente menor, por lo que procedemos a comparar el desempeño de los modelos respecto de su $R^2$ local
 
-```{r}
-# load packages
-library(tmap)
-
-# spgwr add to sp object
+```{r, echo =FALSE, message=FALSE, fig.align = 'center', out.width="80%"}
+# Añadimos la cualidad a la data sp
 nyc_data_prepped_sp$spgwr <- spgwr_model$SDF$localR2
 
-# spgwr
+# Print
 nyc_spgwr <- tm_shape(nyc_data_prepped_sp) +
   tm_fill("spgwr", 
           palette = "RdBu", 
           title = "Local R2") +
   tm_layout(main.title = "GWR [spgwr] Local R2")
 
-nyc_spgwr
+tmap_arrange(nyc_gw_model, nyc_spgwr)
 ```
+
+Notamos que el modelo calibrado por el paquete GWModel predice mejor a nivel general, y existen zonas en donde el método *spgwr* posee un notorio peor desempeño en comparación al método *GWModel*
 
 \newpage
 
-### Geographically Weighted Random Forest (GRF)
+## Geographically Weighted Random Forest
 
-#### SpatialML
+Finalmente, a modo experimental, implementamos el siguiente modelo aborda la heterogeneidad espacial mediante un conjunto de modelos de bosques aleatorios (RF) localmente calibrados,  los modelos RF localmente desarrollados solo usan una cierta cantidad de puntos de datos vecinos para entrenar el modelo  [@georganos2022].
 
-Por último, utilizamos el paquete SpatialML para aplicar el modelo de bosque aleatorio (random forest) ponderado geográficamente grf() al conjunto de datos. Este modelo necesita que se le pase como argumento un objeto de coordenadas.
+La ecuación para la calibración se formula como
+$$Y_i = a(s_i)x(s_i) + \varepsilon$$
+Donde $s_i$ referencia la posición geográfica y $x(s_i)$ son los datos de entrenamiento
 
-Este modelo es diferente del clásico random forest, ya que se construye un submodelo para cada ubicación de datos teniendo en cuenta sólo las observaciones cercanas. Estas observaciones cercanas se deciden por la selección del "bandwidth" óptimo. Sin embargo, este proceso consume mucho tiempo, por lo que se escoge aleatoriamente un número para el bandwidth (98).
+La diferencia entre un GWR, con una formulación lineal y un GRF, es que podemos modelar la no-estacionariedad de los datos junto con un modelo no lineal, lo que vuelve menos restríctiva la función que queremos modelar.
 
-Escribimos el código para implementar grf()
+Para entrenar el modelo hacemos uso del paquete *SpatialML* para aplicar el modelo de bosque aleatorio. Este modelo necesita que se le pase como argumento un objeto de coordenadas, por lo que trabajamos con los centroides de las geometrías.
 
-```{r, results='hide', message=FALSE}
-#packages
+Este modelo es diferente del clásico random forest, ya que se construye un submodelo para cada ubicación de datos teniendo en cuenta sólo las observaciones cercanas. Estas observaciones cercanas se deciden por la selección del "bandwidth" óptimo. Sin embargo, este proceso consume mucho tiempo, por lo que se escoge aleatoriamente un valor de 98 en bandwidth para no sobrecargar el coste computacional.
+
+Al entrenar el modelo, el paquete entrega el siguiente resumen.
+
+```{r, include=FALSE, results='hide', message=FALSE}
+# Paquetes
 library(SpatialML)
 library(sf)
 library(tidyverse)
 
-# get centroids from each geom
+# Obtenemos centroides
 nyc_data_prepped <- nyc_data_prepped %>% 
   mutate(lon = map_dbl(geometry, ~st_centroid(.x)[[1]]),
          lat = map_dbl(geometry, ~st_centroid(.x)[[2]]))
 
-# create coords column
+# Creamos columna de coordenadas
 coords <- nyc_data_prepped %>% 
   st_drop_geometry() %>% 
   select(lat,lon)
 
-# prep for grf
+# Filtramos
 nyc_grf_prepped <- nyc_data_prepped %>% 
   st_drop_geometry() %>%
   mutate(sqrt_med_value = sqrt(median_value)) %>% 
   select(!c(GEOID, NAM, residuals, lagged_residuals, lat, lon))
 
-# Definimos formula para grf
+# Definimos formula para GRF
 formula_grf <- "sqrt_med_value ~ median_rooms + median_income + 
 pct_college + pct_foreign_born + pct_white + pct_black + 
 pct_hispanic + pct_asian + median_age + percent_ooh  + 
 pop_density"
 
 
-# get optimal bandwidth
+# Optimizamos bandwitch
 bwgrf <- grf.bw(formula = formula_grf,
                 dataset = nyc_grf_prepped,
                 kernel = "adaptive",
@@ -870,7 +943,7 @@ bwgrf <- grf.bw(formula = formula_grf,
                 weighted = TRUE,
                 verbose = TRUE)
 
-# model
+# Entrena el modelo
 grf_model <- grf(formula = formula_grf,
     dframe = nyc_grf_prepped,
     bw= 98,
@@ -881,78 +954,61 @@ grf_model <- grf(formula = formula_grf,
     coords = coords)
 ```
 
-Podemos ver el $R^2$ global del modelo, el cual es peor que los modelos anteriores
-
-```{r}
-# global R2 from grf
-grf_model$Global.Model$r.squared
+```{r, echo = FALSE, fig.align = 'center', out.width="80%"}
+knitr::include_graphics("image/randomforestresult.png")
 ```
+
+Entregando una medida de $R^2 = 0.551$, que es notoriamente inferior a los modelos clásicos de regresión geográficamente ponderada, sin embargo, sigue entregando mejores resultados que una regresión lineal simple en cuanto a $R^2$ global.
+
+Para ver el código utilizado en la implementación del modelo, ver **Anexo 7**
 
 \newpage
 
-Visualizamos el desempeño con el R2 local
+## Comparativa: R2 Local en modelos GWR y GRF
 
-```{r}
-# grf
+El modelo GRF trae consigo una medida de $R^2$ local, por lo que procedemos a comparar gráficamente con respecto del modelo GWR
 
+```{r, message=FALSE, results='hide'}
 # Añadimos R2 local 
-nyc_data_prepped_sp$grf <- grf_model$LGofFit$LM_Rsq100 #local r2 grf 
+nyc_data_prepped_sp$grf <- grf_model$LGofFit$LM_Rsq100 #R2 Local
+```
 
+```{r, include=FALSE, message=FALSE, results='hide'}
+# Print
 nyc_grf <- tm_shape(nyc_data_prepped_sp) +
   tm_fill("grf", 
           palette = "RdBu", 
           title = "Local r2") +
   tm_layout(main.title = "GRF [SpatialML] Local R2")
-
-nyc_grf
 ```
 
-\newpage
 
-### Comparación de R2 Local en modelos GWR y GRF
-
-Usamos ggplot para visualizar los 3 modelos sobre el mismo mapa y bajo la misma escala de colores
-
-```{r, message=FALSE}
-library(ggthemes)
-# pivot then plot
-(ggplot_comp_loc_r2 <- nyc_data_prepped_sp %>% 
-  st_as_sf() %>% 
-  pivot_longer(cols = c("spgwr", "gwmodel", "grf")) %>% 
-  ggplot(aes(fill = value)) +
-    geom_sf(color = NA) +
-    scale_fill_fermenter(n.breaks = 8, palette = "RdBu", direction = 0) +
-    ggthemes::theme_map(base_size = 8) +
-    facet_wrap(~name) +
-    labs(title = "Modelos GW: Comparativa R2 Local",
-         fill = "Local R2") +
-    theme(plot.title.position = 'plot',
-          plot.title = element_text(hjust = 0.5,
-                                    vjust = 3,
-                                    size = 20),
-          legend.position = c(0.20,-0.28),
-          legend.key.height = unit(0.85, 'cm'),
-          legend.key.width = unit(2, "cm"),
-          legend.direction = "horizontal",
-          legend.text = element_text(size=10),
-          legend.title = element_text(size = 10),
-          strip.text = element_text(size = 10)))
-
-png('image/localR2GWM.png')
-print(ggplot_comp_loc_r2)
-dev.off()
+```{r, echo = FALSE, fig.align = 'center', out.width="100%"}
+knitr::include_graphics("image/comparativagwmodel.png")
 ```
 
-Podemos ver que la versión GWR del paquete GWmodel tiene, con diferencia, las puntuaciones R2 locales más altas las alcanza el paquete GWModel seguido por el paquete spgwr (GWR) y finalmente SpatialML (GRF)
+Podemos ver que el modelo *GWR* del paquete GWmodel tiene, con diferencia, las puntuaciones $R^2$ locales más altas, seguidas por el paquete *spgwr* (GWR) y finalmente *SpatialML* (GRF)
 
+
+También es importante considerar el coste computacional de los modelos, para el caso del modelo GRF, los tiempos de ejecución durante el entrenamiento de los parámetros es notablemente mayor que el del modelo GWR, además, la memoria consumida para almacenar datos en el caso de los métodos *GWModel* y *spgwr* no superan los 40MB, mientras que el modelo *GRF* calibrado por *SpatialML* requiere de 2.3GB
+
+Por lo que, para efectos de los datos usados, el mejor método de predicción para el valor de las viviendas es el modelo GWR, ejecutado por la librería *GWModel*
+
+Para los códigos usados en la visualización de datos, ver **Anexo 7**.
 
 \newpage
 
 ## Conclusiones
 
-Respecto de las aplicaciones de los distintos modelos para la predicción espacial, los modelos basados en SAR tienen mejores puntuaciones R2 que el modelo de regresión lineal simple. En este caso, los erroresarlm() obtuvieron la puntuación más alta. Los modelos basados en GWR, que ajustan un modelo lineal a cada ubicación de datos, tienen valores R2 globales más altos que los modelos basados en SAR. El único modelo basado en GRF (SpatialML) obtuvo una puntuación menor que los modelos basados en GWR, pero estuvo a la par con los modelos basados en SAR.
+A lo largo del documento, se estudian las problemáticas asociadas al análisis de datos georreferenciados, tales como la autocorrelación espacial y la heterogeneidad espacial inmersa en los datos debido a su naturaleza demográfica.
 
-Se acompañan el experimento con documentación relacionada a la predicción usando data espacial, y los problemas que conlleva y las herramientas matemáticas ocupadas en el modelo.
+Se presentan métodos para cuantificar la dependencia espacial, y realizar inferencia estadística en cuanto a este fenómeno, como es el caso del índice de Moran, y se realizan simulaciones con datos de la *American Community Survey (2016-2020)* para ver sus efectos sobre métodos de predicción clásicos, tales como la regresión lineal simple, modelo que no toma en cuenta las componentes espaciales de los datos, las cuales, llevan a rechazar las hipótesis asociadas a este, como es el caso de la independencia entre los residuos del modelo, esto no permite asegurar la calidad de la estimación de los parámetros $\beta$, pues dado el Teorema de Gauss-Markov, se necesitan de todas las hipótesis para asegurar que $\beta$ es el mejor estimador lineal insesgado, es por esta razón que se necesitan modelos que tomen en cuenta la dependencia espacial de los datos, con el fin de obtener una mejor predicción, a partir de esto, se realizan distintos modelos adaptados para la predicción espacial.
+
+Los modelos de Lag y Error, los cuales toman en cuenta la magnitud de la dependencia espacial entre los datos, mediante una matriz de pesos estandarizada, abordan este problema, y logran mejores puntuaciones $R^2$ que el modelo de regresión lineal simple, donde en particular, el modelo de Error logra eliminar completamente la autocorrelación espacial en los residuos del modelo, sin embargo, sigue presente el problema de la heterogeneidad espacial, motivados por esto, introducimos  modelos de regresión geográficamente ponderados (GWR), los cuales ajustan un modelo lineal a cada ubicación de los datos, alcanzando valores $R^2$ globales más altos que los modelos de Lag y Error, esto pues al calibrar los parámetros para cada ubicación, somos capaces de medir las variaciones locales dentro del modelo, logrando tratar el problema de la heterogeneidad espacial, pues de esta manera, la relación lineal que tienen los regresores con la variable dependiente, no es global, sino que varía dependiendo de la ubicación.
+
+Además, de forma experimental, se aplica un modelo basado en técnicas de Machine Learning, mediante Random Forest (GRF),  sin embargo, obtuvo una puntuación menor términos de $R^2$ respecto de los modelos GWR, y se mantuvo cerca en cuanto a precisión con los modelos de Lag y Error.
+
+Comparativamente, se nota una mejoría con respecto a la precisión de modelos de regresión clásicos. Estos resultados pueden ser útiles para diversos ámbitos de la industria, en cuyas tomas de decisiones intervengan datos que están asociados a una componente geográfica, como es el caso de la predicción de precios de vivienda dentro del mercado inmobiliario.
 
 \newpage
 
@@ -1360,15 +1416,13 @@ Apesar de este resultado, usamos matrices de peso estandarizadas pues son las qu
 
 Si sabemos el intervalo en el que se mueve $I$ para nuestro modelo, podemos saber que tan significativo es el valor, y por lo tanto que tan presente esta el fenómeno de autocorrelación espacial.
 
-Respecto del valor esperado del índice de Moran bajo cuando suponemos que no hay autocorrelación espacial, consideramos la siguiente hipótesis nula:
-$$H_0: \text{No existe autocorrelación espacial}$$
-Dicha hipótesis consiste en suponer que, dada una permutación de los datos, es decir, cambiando el orden en el que vienen los datos $(x_i)_{i=1}^{N}$, y fijando la matriz de pesos antes del reordenamiento, no se debiese tener un impacto sobre el valor de $I$.
+Respecto del valor esperado del índice de Moran bajo cuando suponemos que no hay autocorrelación espacial, consideramos la siguiente hipótesis nula: $$H_0: \text{No existe autocorrelación espacial}$$ Dicha hipótesis consiste en suponer que, dada una permutación de los datos, es decir, cambiando el orden en el que vienen los datos $(x_i)_{i=1}^{N}$, y fijando la matriz de pesos antes del reordenamiento, no se debiese tener un impacto sobre el valor de $I$.
 
 \newpage
 
 Por lo tanto, para un muestreo $x = (x_i)_{i=1}^{N}$, tomamos una permutación $\pi \in S^{N}$ que aplica sobre el conjunto $(x_i)_{i=1}^{N}$ con $S^N$ el grupo simétrico.
 
-Consideramos nuestro espacio de probabilidad $(\Omega, \mathcal{F}, \mathbb{P}) = (S^N, \mathcal{P}(S^N), \mathbb{P_u})$ con $\mathbb{P_u}$ distribución uniforme.
+Consideramos nuestro espacio de probabilidad $(\Omega, \mathcal{F}, \mathbb{P}) = (S^N, \mathcal{P}(S^N), \mathbb{P}_u)$ con $\mathbb{P}_u$ distribución uniforme.
 
 Tenemos entonces
 
@@ -1378,36 +1432,207 @@ Claramente, $\pi \bar{x} = \bar{x}$, además haciendo la suma sobre $i$ tenemos
 
 $$\sum _{i=1}^{N} ((\pi x)_i - \pi \bar{x})^2 = \sum _{i=1}^{N} (x_i -  \bar{x})^2$$
 
-Vemos entonces que 
+Vemos entonces que
 
 $$\mathbb{E}_{\pi}[((\pi x)_i - \pi \bar{x})((\pi x)_j - \pi \bar{x})] = \mathbb{E}_{\pi}[((\pi x)_i - \bar{x})((\pi x)_j - \bar{x})]$$
 
-Sea $f: S^N \rightarrow \mathbb{R}$ definida por $f(\pi) = ((\pi x)_i - \bar{x})((\pi x)_j - \bar{x})$, y sea luego tenemos
+Sea $f: S^N \rightarrow \mathbb{R}$ definida por $f(\pi) = ((\pi x)_i - \bar{x})((\pi x)_j - \bar{x})$, luego tenemos
 
 $$\mathbb{E}_{\pi}(f(\pi)) = \sum_{\pi_0 \in S^n} f(\pi_0) \mathbb{P}(\pi = \pi_0)$$
 
 $$ = \sum_{\pi_0 \in S^N} f(\pi) \frac{1}{N!} = \frac{1}{N!} \sum_{\pi \in S^N} ((\pi x)_i - \bar{x})((\pi x)_j - \bar{x})$$
 
-Como $\pi$ es una permutación, entonces $(\pi x)_i  \neq (\pi x)_j$ para $i \neq j$ y además notamos que para $(x_i,x_j)$ fijos existen $(N-2)!$ permutaciones $\pi$ tales que $(x_i,x_j) = ((\pi x)_i, (\pi x)_j)$ para $i \neq j$, por lo tanto
+Como $\pi$ es una permutación, entonces $(\pi x)_i \neq (\pi x)_j$ para $i \neq j$ y además notamos que para $(x_i,x_j)$ fijos existen $(N-2)!$ permutaciones $\pi$ tales que $(x_i,x_j) = ((\pi x)_i, (\pi x)_j)$ para $i \neq j$, por lo tanto
 
 $$\sum_{\pi \in S^N} ((\pi x)_i - \bar{x})((\pi x)_j - \bar{x}) = (N-2)!\sum_{i \neq j} (x_i - \bar{x})(x_j - \bar{x}) $$
 
-Y entonces 
+Y entonces
 
-$$\mathbb{E}_{\pi}[((\pi x)_i - \pi \bar{x})((\pi x)_j - \pi \bar{x})] =\frac{(N-2)!}{N!} \sum_{\pi \in S^N} (x_i - \bar{x})(x_j - \bar{x})$$
+$$\mathbb{E}_{\pi}[((\pi x)_i - \pi \bar{x})((\pi x)_j - \pi \bar{x})] =\frac{(N-2)!}{N!} \sum_{i \neq j} (x_i - \bar{x})(x_j - \bar{x})$$
 
 $$ = \frac{1}{N(N-1)} [ (\sum_{k} x_k - \bar{x})^2 - \sum_{k} (x_k - \bar{x})^2]$$
 
-$$ = \frac{-\sum_{k}(x_k - \bar{x})^2}{N(N-1)}$$
-\newpage
+$$ = \frac{-\sum_{k}(x_k - \bar{x})^2}{N(N-1)}$$ \newpage
 
 Luego
 
-$$\mathbb{E}_{\pi}(I) = \frac{N}{W} \frac{\sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij} (\frac{-\sum_{k}(x_k - \bar{x})^2}{N(N-1)})}{\sum _{i=1}^{n} (x_i -  \bar{x})^2}$$
-Y por lo tanto
+$$\mathbb{E}_{\pi}(I) = \frac{N}{W} \frac{\sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij} (\frac{-\sum_{k}(x_k - \bar{x})^2}{N(N-1)})}{\sum _{i=1}^{n} (x_i -  \bar{x})^2}$$ Y por lo tanto
 
 $$\mathbb{E}_{\pi}(I) = - \frac{1}{N-1}$$
 
-Concluimos que de aceptar la hipótesis nula, se espera que 
+Concluimos que de aceptar la hipótesis nula, se espera que
 
 $$\mathbb{E}(I) = - \frac{1}{N-1}$$
+
+\newpage
+
+### Anexo 6: Códigos para plots de modelos para generación de matriz de pesos estandarizada
+
+Podemos hacer un plot de la estructura que posee el objeto "neighborhood list", para visualizar usamos funciones descritas en Analyzing US Census.
+
+```{r, results='hide', warning=FALSE, message=FALSE}
+
+# Filtramos para visualizar condado de Bronx
+bronx <- nyc_data_prepped[str_detect(nyc_data_prepped$NAM, "Bronx"),]
+
+# Guardamos su geometría (polygons)
+bronx_geom <- st_geometry(bronx)
+
+# Centroide de cada tramo censal y coordenadas
+bronx_centroids = st_centroid(bronx_geom)
+bronx_coordinates = st_coordinates(bronx_geom)
+
+# Creamos neighbor list
+bronx_nb_queen <- spdep::poly2nb(bronx)
+bronx_nb_rook <- spdep::poly2nb(bronx, queen=FALSE)
+```
+
+**Bronx Queen Model**
+
+```{r}
+bronx_nb_queen
+```
+
+**Bronx Rook Model**
+
+```{r}
+bronx_nb_rook
+```
+
+\newpage
+
+Para unir las dos imágenes en el mismo plot
+
+```{r, results='hide', warning=FALSE, message=FALSE}
+# save plot 
+jpeg("image/bronx_neighborhood_rook_queen.jpg", width = 1000, height = 800)
+
+# Preparamos plot de 2 imagenes
+par(mfrow = c(1,2))
+
+# Plot modelo Queen
+plot(bronx_geom,
+     main = "Queen",
+     reset = FALSE,
+     cex.main = 3)
+plot(bronx_nb_queen, bronx_centroids,
+     add = TRUE,
+     col = 2,
+     lwd = 1.5)
+
+# Plot modelo Rook
+plot(bronx_geom,
+     main = "Rook",
+     reset = FALSE,
+     cex.main = 3)
+plot(bronx_nb_rook, bronx_centroids,
+     add = TRUE,
+     col = 2,
+     lwd = 1.5)
+
+# close jpeg
+dev.off()
+```
+
+```{r, echo = FALSE, fig.align = 'center', out.width="60%"}
+knitr::include_graphics("image/bronx_neighborhood_rook_queen.jpg")
+```
+
+\newpage
+
+### Anexo 7: Códigos para implementación de modelo GRF y visualización de R2 local
+
+*Entrenamiento modelo GRF de SpatialML*
+
+El código empleado para usar el paquete *SpatialML* en el entrenamiento del modelo es el siguiente
+
+```{r, eval=FALSE, results='hide', message=FALSE}
+# Paquetes
+library(SpatialML)
+library(sf)
+library(tidyverse)
+
+# Obtenemos centroides
+nyc_data_prepped <- nyc_data_prepped %>% 
+  mutate(lon = map_dbl(geometry, ~st_centroid(.x)[[1]]),
+         lat = map_dbl(geometry, ~st_centroid(.x)[[2]]))
+
+# Creamos columna de coordenadas
+coords <- nyc_data_prepped %>% 
+  st_drop_geometry() %>% 
+  select(lat,lon)
+
+# Filtramos
+nyc_grf_prepped <- nyc_data_prepped %>% 
+  st_drop_geometry() %>%
+  mutate(sqrt_med_value = sqrt(median_value)) %>% 
+  select(!c(GEOID, NAM, residuals, lagged_residuals, lat, lon))
+
+# Definimos formula para GRF
+formula_grf <- "sqrt_med_value ~ median_rooms + median_income + 
+pct_college + pct_foreign_born + pct_white + pct_black + 
+pct_hispanic + pct_asian + median_age + percent_ooh  + 
+pop_density"
+
+
+# Optimizamos bandwitch
+bwgrf <- grf.bw(formula = formula_grf,
+                dataset = nyc_grf_prepped,
+                kernel = "adaptive",
+                coords = coords,
+                bw.min = 98,
+                bw.max = 98,
+                step = 1,
+                trees = 500,
+                mtry = NULL,
+                importance = "impurity",
+                forests = FALSE,
+                weighted = TRUE,
+                verbose = TRUE)
+
+# Entrena el modelo
+grf_model <- grf(formula = formula_grf,
+    dframe = nyc_grf_prepped,
+    bw= 98,
+    ntree = 500,
+    mtry = 2,
+    kernel = "adaptive",
+    forests = TRUE,
+    coords = coords)
+```
+
+\newpage
+
+*Comparativa de R2 local entre modelos GWR y GRF*
+
+Usamos ggplot para visualizar los 3 modelos sobre el mismo mapa y bajo la misma escala de colores
+
+```{r, message=FALSE}
+library(ggthemes)
+# pivot then plot
+(ggplot_comp_loc_r2 <- nyc_data_prepped_sp %>% 
+  st_as_sf() %>% 
+  pivot_longer(cols = c("spgwr", "gwmodel", "grf")) %>% 
+  ggplot(aes(fill = value)) +
+    geom_sf(color = NA) +
+    scale_fill_fermenter(n.breaks = 8, palette = "RdBu", direction = 0) +
+    ggthemes::theme_map(base_size = 8) +
+    facet_wrap(~name) +
+    labs(title = "Modelos GW: Comparativa R2 Local",
+         fill = "Local R2") +
+    theme(plot.title.position = 'plot',
+          plot.title = element_text(hjust = 0.5,
+                                    vjust = 3,
+                                    size = 20),
+          legend.position = c(0.20,-0.28),
+          legend.key.height = unit(0.85, 'cm'),
+          legend.key.width = unit(2, "cm"),
+          legend.direction = "horizontal",
+          legend.text = element_text(size=10),
+          legend.title = element_text(size = 10),
+          strip.text = element_text(size = 10)))
+
+png('image/localR2GWM.png')
+print(ggplot_comp_loc_r2)
+dev.off()
+```
