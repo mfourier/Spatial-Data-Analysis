@@ -79,13 +79,15 @@ En $\textit{Analyzing US Census Data - Kyle Walker}$ se muestra como hacer uso d
 
 -   *spatialreg & GWmodel* : Paquete diseñado para la aplicación de modelos de regresión espacial
 
+Se busca predecir precio de viviendas, suponemos que existe autocorrelación espacial sobre esta variable, pues aquellas viviendas que se encuentran cerca, comparten su entorno, y por tanto una serie de factores relacionados al consumo.
+
 \newpage
 
 # Importando datos
 
 Se importan datos con *tidycensus* provenientes de la American Community Survey (ACS) (2016-2020), haciendo uso de la función get_acs()
 
-Tomamos datos con nivel geográfico de distritos para la ciudad de NY, para ello pedimos datos de los condados de: 'Bronx', 'Kings', 'New York', 'Queens', 'Richmond'
+Se toman datos georreferenciados con nivel geográfico de distritos para la ciudad de NY con nivel geográfico de distritos para la ciudad de NY, para ello pedimos datos de los condados de: 'Bronx', 'Kings', 'New York', 'Queens', 'Richmond'
 
 ```{r, echo=FALSE, results='hide', warning=FALSE, message=FALSE}
 #package
@@ -131,17 +133,17 @@ nyc_data <- get_acs(
 
 Las variables que importamos, para usar en los distintos modelos de predicción, son las siguientes:
 
--   **median_value** : El valor medio de la vivienda del tramo censal, nuestra variable a predecir
+-   **median_value** : El valor medio de la vivienda del distrito censal, nuestra variable a predecir
 
--   median_rooms : Cantidad media de habitaciones por casa en el tramo censal
+-   median_rooms : Cantidad media de habitaciones por casa en el distrito censal
 
--   total_population : Población total en el tramo censal
+-   total_population : Población total en el distrito censal
 
--   median_age : Edad media de la población en el tramo censal
+-   median_age : Edad media de la población en el distrito censal
 
--   median_year_built : Año promedio donde se construyó la vivienda
+-   median_year_built : Mediana del año en que se construyó la vivienda
 
--   median_income : Ingreso medio de los hogares en el tramo censal
+-   median_income : Ingreso medio de los hogares en el distrito censal
 
 -   pct_college : Porcentaje de la población de 25 años o más con un título universitario de cuatro años
 
@@ -264,7 +266,7 @@ Entenderemos por $\textbf{matriz de pesos estandarizada}$ aquella que cumple las
 
 -   Supondremos $w_{ij} \geq 0 \ \  \forall i,j \in \{1, \dots, n\}$, pues $w\_{ij}$ es una magnitud de la influencia que hay entre los vecinos $i$ y $j$
 
--   Típicamente, $w_{ii} = 0 \ \ \forall i \in \{1, \dots, n\}$, pues el hecho de que un punto tenga influencia con el mismo puede generar ruido en el modelo
+-   Podemos suponer que $w_{ii} = 0 \ \ \forall i \in \{1, \dots, n\}$, pues el hecho de que un punto tenga influencia con el mismo puede generar ruido, sin embargo esto dependera del modelo
 
 -   Suponemos que la influencia que tiene $y_{i}$ sobre $y_{j}$ es la misma que la de $y_{j}$ sobre $y_{i}$, esto es, $w_{ij} = w_{ji} \ \ \forall i,j \in \{1, \dots, n\}$, es decir, $W$ es simétrica
 
@@ -437,9 +439,11 @@ ggplot(nyc_data_prepped, aes(x = residuals)) +
   theme_minimal()
 ```
 
-\newpage
 
-Vemos que los residuos siguen aparentemente una distribución normal, como se mencionó antes, en la práctica, realizar una transformación de la variable dependiente con el fin de que siga una distribución normal suele ayudar en la distribución de los residuos [@walker2023a], sin embargo, la suposición de independencia de los residuos comúnmente se viola en los modelos que utilizan datos espaciales. Esto último por la autocorrelación espacial presente en el término de error, lo que significa que el rendimiento del modelo en sí mismo depende de la ubicación geográfica.
+
+Vemos que los residuos siguen aparentemente una distribución normal, como se mencionó antes, en la práctica, se realiza una transformación de la variable dependiente con el fin de que siga una distribución normal suele ayudar en la distribución normal de los residuos [@walker2023a], sin embargo, la suposición de independencia de los residuos comúnmente se viola en los modelos que utilizan datos espaciales. Esto último por la autocorrelación espacial presente en el término de error, lo que significa que el rendimiento del modelo en sí mismo depende de la ubicación geográfica.
+
+\newpage
 
 Podemos evaluar esto utilizando el índice de Moran, buscamos armar una matriz de pesos, para medir la interacción entre cada tramo censal, para ello generamos una "neighborhood list" en R con el paquete $\textbf{spdep}$ usando la función poly2nb(), esta función nos presenta varias formas de catalogar a los vecinos, para el modelo usaremos
 
@@ -451,7 +455,7 @@ nyc_nb <- spdep::poly2nb(nyc_data_prepped, queen = TRUE)
 nyc_nb
 ```
 
-```{r, echo = FALSE, fig.align = 'center', out.width="80%"}
+```{r, echo = FALSE, fig.align = 'center', out.width="95%"}
 knitr::include_graphics("image/neighborlist.png")
 ```
 
@@ -611,7 +615,7 @@ $$ Y = \alpha + \rho WY + X \beta + \varepsilon$$
 Donde formulamos el valor de la respuesta $Y$ como una versión ponderada de los valores que toma la respuesta en los alrededores de cada dato, sumado a una dependencia lineal que tenga la variable $Y$ con los regresores $X$, tomando $W$ una matriz de pesos estandarizada y $\rho$ refleja la intensidad de la dependencia espacial.
 
 Para visualizarlo más claramente, vemos para cada fila tenemos 
-$$Y_i = \alpha_i + \rho Y_{lag-i} + \sum_{k} \beta_k X_{ik} + \varepsilon_i \ \ \forall i \in \{1,...,n\}$$
+$$Y_i = \alpha + \rho Y_{lag-i} + \sum_{k} \beta_k X_{ik} + \varepsilon_i \ \ \forall i \in \{1,...,n\}$$
 donde 
 $$Y_{lag-i} = \sum_{j}w_{ij} Y_j$$
 Por lo que, la variable $Y_{lag-i}$ representa una versión ponderada de los valores que toman las respuestas $Y_j$ que son vecinas de la respuesta $Y_i$, es decir, aquellos $Y_j$ tales que $w_{ij} \neq 0$.
@@ -769,14 +773,14 @@ Los modelos abordados en las secciones anteriores, tanto la regresión lineal co
 El siguiente modelo, aborda la heterogeneidad espacial aprendiendo un conjunto de parámetros $\beta_{ik}$ asociado a los regresores del modelo en cada ubicación $s_i$, debido a esto, uno de los inconvenientes de este modelo es el coste computacional, pues para cada regresor, necesitamos entrenar $\beta_{ik}$ para ubicación $s_i$.
 
 Mientras que la formulación de un modelo de regresión lineal, el cual tiene la forma 
-$$Y_i = \alpha_i + \sum_{k=1}^{m} \beta_{k} X_{ik} + \varepsilon_i$$
+$$Y_i = \alpha + \sum_{k=1}^{m} \beta_{k} X_{ik} + \varepsilon_i$$
 Con los $\beta_k$ idénticos para cada locación $s_i$, la formulación del modelo de regresión geográficamente ponderado (GWR) para una ubicación $s_i$ dada, se escribe como 
-$$Y_i = \alpha_i + \sum_{k=1}^{m} \beta_{ik} X_{ik} + \varepsilon_i$$ 
+$$Y_i = \alpha + \sum_{k=1}^{m} \beta_{ik} X_{ik} + \varepsilon_i$$ 
 Donde el intercepto $\alpha_i$ , los regresores $(X_{ik})_{k=1}^{m}$, y los errores $\varepsilon_i$ están todos a locación $s_i$.
 
 Por lo demás, los parámetros $\beta_{ik}$ serán coeficientes locales para el regresor $X_k$ con ubicación $s_i$
 
-El coeficiente $\beta(s_h)$ en locación $s_h$ puede entrenarse vía método de mínimos cuadrados ponderados, donde el peso que se le asigna a cada muestra depende de su distancia a $s_h$, es decir, buscamos encontrar $\beta(s_h)$ tal que 
+El coeficiente $\beta(s_h)$ en locación $s_h$ puede entrenarse vía método de mínimos cuadrados ponderados, minimizando un error ponderado, donde el peso que se le asigna a cada muestra depende de su distancia a $s_h$, es decir, buscamos encontrar $\beta(s_h)$ tal que 
 $$\beta(s_h) = \arg \min _{\beta(s_{h})} \sum_{i} w(s_i,s_h) (y(s_i) - x(s_i)^{T} \beta(s_h))^2$$
 donde $y(s_i)$ y $x(s_i)$ son la respuesta y los regresores en locación $(s_i)$ respectivamente, además $w(s_i,s_h)$ es una función que decae con la distancia entre $s_i$ y $s_h$, por ejemplo, podemos tomar $w(s_i,s_h) = \exp (- \frac{1}{2} ||s_i-s_h||_{2}^{2})$ (Jiang, Z 2019) [@8444678]
 
@@ -1361,64 +1365,61 @@ Haremos uso de los siguientes resultados conocidos
 
 Con ello, podemos probar el siguiente teorema
 
--   $\textbf{Teorema:}$ Se tiene que el operador $\lambda_{max}: S^n \rightarrow \mathbb{R}$ , que asocia a cada $A \in S^n$ matriz simétrica su mayor valor propio $\lambda_{max} (A)$, es convexa, más aún, $\lambda_{max}(A) = \sup_{||v||=1} v^{T}Av$ supremo de funcionales lineales sobre $S^n$.
+-   $\textbf{Teorema:}$ Sea $A \in S^N$ una matriz simétrica, luego sus valores propios $(\lambda_j)_{j=1}^{n}$ son números reales, además
+$$\max_{x \in \mathbb{R}^n} \frac{ \langle  \; x, Ax\; \rangle}{||x||^2} = \max_{||x||=1} x^{T}Ax = \lambda_{max}(A) \ \text{y se alcanza en} \ x = v_{max} \ \text{vector propio asociado a} \ \lambda_{max}$$
+$$\min_{x \in \mathbb{R}^n} \frac{ \langle  \; x, Ax\; \rangle}{||x||^2} = \min_{||x||=1} x^{T}Ax = \lambda_{min}(A) \ \text{y se alcanza en} \ x = v_{min} \ \text{vector propio asociado a} \ \lambda_{min}$$
 
-El resultado anterior es conocido es corolario de los cocientes de Rayleigh, para una demostración detallada de ver Teorema 55 en [The Rayleigh's principle and the minimax principle for the eigenvalues of a self-adjoint matrix](https://people.math.osu.edu/costin.10/5102/Rayleigh%20quotient.pdf)
-
-\newpage
-
-Además haremos uso del siguiente lema
-
--   $\textbf{Lema:}$ El mayor valor propio de una matriz $A$ con coeficientes no negativos está acotada por la mayor suma de las filas, esto es, $\lambda_{max} (A) \leq \max_{i} \sum_{j=1}^{n}a_{ij}$.
-
--   $\textbf{Demostración del lema}$: Sea $\lambda$ un valor propio de una matriz $A$ no negativa asociada a un vector $x$, tenemos entonces que
-
-$$Ax=\lambda x \implies \lambda |x_i| = |\sum_{j=1}^{n}a_{ij}x_j| \ \ \forall i \in \{1,\dots,n\}$$ $$\implies \lambda |x_i| = |\sum_{j=1}^{n}a_{ij}x_j| \leq (\sum_{j=1}^{n} |a_{ij}|) \max_{j} |x_j| \ \ \forall i \in \{1,\dots,n\}$$
-
-Usando que $a_{ij} \geq 0 \ \ \forall i,j \in \{1,\dots,n\}$ y que la desigualdad se cumple para todo $i$ tenemos
-
-$$\lambda \max_{i} |x_i| \leq \max_{i} (\sum_{j=1}^{n} a_{ij} \max_j |x_j|) = \max_{i}(\sum_{j=1}^{n} a_{ij}) \max_{j} |x_j|$$
-
-$$\implies \lambda \leq \max_{i} (\sum_{j=1}^{n} a_{ij})$$
-
-Como $\lambda$ era arbitrario deducimos que
-
-$$\lambda_{max}(A) \leq \max_{i}(\sum_{j=1}^{n} a_{ij})$$
+El resultado anterior es conocido por cocientes de Rayleigh, para una demostración detallada, ver Teorema 55 en el siguiente documento [The Rayleigh's principle and the minimax principle for the eigenvalues of a self-adjoint matrix](https://people.math.osu.edu/costin.10/5102/Rayleigh%20quotient.pdf)
 
 \newpage
+
+Además, hacemos uso un teorema para estimar cotas sobre los valores propios de la matriz, para ello necesitamos la siguiente definición:
+
+- $\textbf{Definición:}$ (Radio espectral) Sean $(\lambda_{i})_{i=1}^{n}$ los valores propios de una matriz $A \in \mathbb{C}^{n \times n}$, definimos el $\textbf{radio espectral}$ de $A$ como
+$$\rho(A) = \max \{ |\lambda_1|, |\lambda_2|,...|\lambda_n|\}$$
+
+-   $\textbf{Teorema:}$ (Desigualdad de Perron-Frobenius) Para una matriz $A$ con entradas no negativas, se cumple que
+$$\min_{i} \sum_{j=1}^{n} A_{ij} \leq \rho(A) \leq \max_{i} \sum_{j=1}^{n} A_{ij}$$
+Para más detalle, ver Teoremas de Perron-Frobenius, punto 1 en sección *positive matrices* y sección *Inequalities for Perron–Frobenius eigenvalue* [(enlace aquí)](https://en.wikipedia.org/wiki/Perron%E2%80%93Frobenius_theorem)
 
 Enunciamos entonces
 
 -   $\textbf{Propiedad:}$ Para $I= \frac{n}{W}\frac{\sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij} (y_i - \bar{y})(y_j - \bar{y})}{\sum _{i=1}^{n} (y_i - \bar{y})^2}$ donde $\bar{y} = \sum_{i=1}^{n} y_i/n$ con $W$ matriz de pesos estandarizada e $y \in \mathbb{R}^{n}$, se cumple que $I \in [-1,1]$.
 
--   $\textbf{Demostración:}$ Consideremos el operador $\Phi : \mathbb{R}^{n} \rightarrow \partial B(0,1)$ definido por $\Phi(y) = z =(z_i)_{i=1}^{n} = (\frac{(y_i - \bar{y})}{\sqrt(\sum_{i=1}^{n}(y_i - \bar{y})^{2})})_{i=1}^{n}$
+-   $\textbf{Demostración:}$ Consideremos el operador $\Phi : \mathbb{R}^{n} \rightarrow \partial B(0,1)$ definido por $\Phi(y) = z =(z_i)_{i=1}^{n} = (\frac{(y_i - \bar{y})}{\sqrt{\sum_{i=1}^{n}(y_i - \bar{y})^{2}}})_{i=1}^{n}$
 
 Está bien definida pues $\forall y \in \mathbb{R}^n$
-
 $$||\Phi(y)||_{2} = ||z||_{2} = \sum_{i=1}^{n} |z_i|^2 = \sum_{i=1}^{n} \frac{(y_i - \bar{y})^2}{\sum_{i=1}^{n} (y_i - \bar{y})^2}$$
-
 $$= \frac{\sum_{i=1}^{n} (y_i - \bar{y})^2}{\sum_{i=1}^{n} (y_i - \bar{y})^2} = 1$$
 
-Notamos que
+Notamos que, reescribiendo $I$
 
 $$I = \frac{n\sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij}(y_i - \bar{y})(y_j - \bar{y}))}{W (\sum_{i=1}^{n} (y_i - \bar{y})^2)}$$
-
+Ingresando la suma del denominador en el numerador
 $$= \frac{n}{W} \sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij} \frac{(y_i - \bar{y})(y_j - \bar{y})}{\sqrt{\sum_{i=1}^{n}(y_i - \bar{y})^2} \sqrt{\sum_{i=1}^{n}(y_i - \bar{y})^2}}$$
-
 $$\frac{n}{W} \sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij} \Phi (y)_i \Phi (y)_j = \frac{n}{W} \sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij} z_i z_j$$
+$$= n (z^TVz)$$
+
+\newpage
 
 Definimos $V = (\frac{w_{ij}}{W})_{i,j}^{n}$ matriz normalizada tal que $\sum_{i,j} v_{ij} = 1$, además, como W es matriz de pesos estandarizada, tenemos que $V$ también lo es, por lo que es simétrica, no negativa, y row-normalized.
 
-Entonces, recordando que $||z||_{2} = 1$
+Entonces, usando que $||z||_{2} = 1$ y como $I= n (z^TVz)$
+$$n\lambda_{min}(V) = n\min_{||z||=1} z^{T}Vz \leq I  \leq n \max_{||z||=1} z^{T}Vz = n\lambda_{max}(V)$$
+$$\implies |I| \leq n \max \{|\lambda_{max}(V)|, |\lambda_{min}(V)|\} \leq n\rho(V)$$
+Para encontrar el valor de $\rho(V)$ usamos que $V$ es matriz de pesos estandarizada, tenemos por la desigualdad de Perron-Frobenius
 
-$$I = n(z^{T}Vz) \leq n \sup_{||z||=1} z^{T}Vz = n\lambda_{max}(V)$$
+$$\min_{i} \sum_{j=1}^{n} v_{ij} \leq \rho(V) \leq \max_{i} \sum_{j=1}^{n} v_{ij}$$
 
-$$\implies |I| \leq n |\lambda_{max}(V)| \leq n |\max_{i}(\sum_{j=1}^{n} v_{ij})| \leq n \max_{i} (\sum_{j=1}^{n}|v_{ij}|)$$
+Como $\sum_{i=1}^{n} \sum_{j=1}^{n} v_{ij} = 1$ y $V$ es $\textit{row-normalized}$, es decir, cada fila suma la misma cantidad, tenemos $\sum_{j=1}^{n} v_{ij} = \frac{1}{n} \ \ \forall i \in \{1,\dots,n\}$, por lo que en particular
+$$\min_{i} \sum_{j=1}^{n} v_{ij} = \max_{i} \sum_{j=1}^{n} v_{ij} = \frac{1}{n}$$
+Por lo tanto
+$$\min_{i} \sum_{j=1}^{n} v_{ij} \leq \rho(V) \leq \max_{i} \sum_{j=1}^{n} v_{ij}$$
+$$ \iff \frac{1}{n} \leq \rho(V) \leq \frac{1}{n} $$
+$$\implies \rho(V) = \frac{1}{n}$$
+Luego, retomando la desigualdad del índice de Moran, podemos deducir que
 
-Por un lado, tenemos que $|v_{ij}| = v_{ij}$ y como $\sum_{i=1}^{n} \sum_{j=1}^{n} v_{ij} = 1$ y $V$ es $\textit{row-normalized}$ tenemos que se cumple $\sum_{j=1}^{n} v_{ij} = \frac{1}{n} \ \ \forall i \in \{1,\dots,n\}$, y por lo tanto
-
-$$\implies |I| \leq n\max_{i}(\sum_{j=1}^{n} v_{ij}) = n *\frac{1}{n} = 1$$
-
+$$|I| \leq n\rho(V) = n \times \frac{1}{n} = 1$$
 $$\implies I \in [-1,1]$$
 
 \newpage
@@ -1442,9 +1443,9 @@ Apesar de este resultado, usamos matrices de peso estandarizadas pues son las qu
 
 Si sabemos el intervalo en el que se mueve $I$ para nuestro modelo, podemos saber que tan significativo es el valor, y por lo tanto que tan presente esta el fenómeno de autocorrelación espacial.
 
-Respecto del valor esperado del índice de Moran bajo cuando suponemos que no hay autocorrelación espacial, consideramos la siguiente hipótesis nula: $$H_0: \text{No existe autocorrelación espacial}$$ Dicha hipótesis consiste en suponer que, dada una permutación de los datos, es decir, cambiando el orden en el que vienen los datos $(x_i)_{i=1}^{N}$, y fijando la matriz de pesos antes del reordenamiento, no se debiese tener un impacto sobre el valor de $I$.
-
 \newpage
+
+Respecto del valor esperado del índice de Moran bajo cuando suponemos que no hay autocorrelación espacial, consideramos la siguiente hipótesis nula: $$H_0: \text{No existe autocorrelación espacial}$$ Dicha hipótesis consiste en suponer que, dada una permutación de los datos, es decir, cambiando el orden en el que vienen los datos $(x_i)_{i=1}^{N}$, y fijando la matriz de pesos antes del reordenamiento, no se debiese tener un impacto sobre el valor de $I$.
 
 Por lo tanto, para un muestreo $x = (x_i)_{i=1}^{N}$, tomamos una permutación $\pi \in S^{N}$ que aplica sobre el conjunto $(x_i)_{i=1}^{N}$ con $S^N$ el grupo simétrico.
 
@@ -1452,11 +1453,14 @@ Consideramos nuestro espacio de probabilidad $(\Omega, \mathcal{F}, \mathbb{P}) 
 
 Tenemos entonces
 
-$$\mathbb{E}_{\pi}(I) = \frac{N}{W} \frac{\sum_{i=1}^{N} \sum_{j=1}^{N} w_{ij} ((\pi x)_i - \pi \bar{x})((\pi x)_j - \pi \bar{x})}{\sum _{i=1}^{N} ((\pi x)_i - \pi \bar{x})^2}$$
+$$\mathbb{E}_{\pi}(I) = \mathbb{E}_{\pi} (\frac{N}{W} \frac{\sum_{i=1}^{N} \sum_{j=1}^{N} w_{ij} ((\pi x)_i - \pi \bar{x})((\pi x)_j - \pi \bar{x})}{\sum _{i=1}^{N} ((\pi x)_i - \pi \bar{x})^2})$$
 
 Claramente, $\pi \bar{x} = \bar{x}$, además haciendo la suma sobre $i$ tenemos
 
 $$\sum _{i=1}^{N} ((\pi x)_i - \pi \bar{x})^2 = \sum _{i=1}^{N} (x_i -  \bar{x})^2$$
+Luego, usando la linealidad de la esperanza
+
+$$= \frac{N}{W} \frac{\sum_{i=1}^{N} \sum_{j=1}^{N} w_{ij} \mathbb{E}_{\pi}(((\pi x)_i - \pi \bar{x})((\pi x)_j - \pi \bar{x})))}{\sum _{i=1}^{N} (x_i -  \bar{x})^2}$$
 
 Vemos entonces que
 
@@ -1466,28 +1470,32 @@ Sea $f: S^N \rightarrow \mathbb{R}$ definida por $f(\pi) = ((\pi x)_i - \bar{x})
 
 $$\mathbb{E}_{\pi}(f(\pi)) = \sum_{\pi_0 \in S^n} f(\pi_0) \mathbb{P}(\pi = \pi_0)$$
 
-$$ = \sum_{\pi_0 \in S^N} f(\pi) \frac{1}{N!} = \frac{1}{N!} \sum_{\pi \in S^N} ((\pi x)_i - \bar{x})((\pi x)_j - \bar{x})$$
+$$ = \sum_{\pi_0 \in S^N} f(\pi_0) \frac{1}{N!} = \frac{1}{N!} \sum_{\pi_0 \in S^N} ((\pi_{0} x)_i - \bar{x})((\pi_0 x)_j - \bar{x})$$
 
-Como $\pi$ es una permutación, entonces $(\pi x)_i \neq (\pi x)_j$ para $i \neq j$ y además notamos que para $(x_i,x_j)$ fijos existen $(N-2)!$ permutaciones $\pi$ tales que $(x_i,x_j) = ((\pi x)_i, (\pi x)_j)$ para $i \neq j$, por lo tanto
+Como $\pi_0$ es una permutación, entonces $(\pi_0 x)_i \neq (\pi_0 x)_j$ para $i \neq j$ y además notamos que para $(x_i,x_j)$ fijos existen $(N-2)!$ permutaciones $\pi$ tales que $(x_i,x_j) = ((\pi x)_i, (\pi x)_j)$ para $i \neq j$, por lo tanto
 
-$$\sum_{\pi \in S^N} ((\pi x)_i - \bar{x})((\pi x)_j - \bar{x}) = (N-2)!\sum_{i \neq j} (x_i - \bar{x})(x_j - \bar{x}) $$
+$$\sum_{\pi_0 \in S^N} ((\pi_0 x)_i - \bar{x})((\pi_0 x)_j - \bar{x}) = (N-2)!\sum_{i \neq j} (x_i - \bar{x})(x_j - \bar{x}) $$
 
 Y entonces
 
 $$\mathbb{E}_{\pi}[((\pi x)_i - \pi \bar{x})((\pi x)_j - \pi \bar{x})] =\frac{(N-2)!}{N!} \sum_{i \neq j} (x_i - \bar{x})(x_j - \bar{x})$$
+Vemos que
 
-$$ = \frac{1}{N(N-1)} [ (\sum_{k} x_k - \bar{x})^2 - \sum_{k} (x_k - \bar{x})^2]$$
+$$\sum_{i \neq j} (x_i - \bar{x})(x_j - \bar{x}) = \sum_{i,j} (x_i - \bar{x})(x_j - \bar{x}) - \sum_{i = j} (x_i - \bar{x})(x_j - \bar{x})$$
+$$= (\sum_{i} (x_i - \bar{x}) \sum_{j}(x_j - \bar{x})) - \sum_{k} (x_k - \bar{x})(x_k - \bar{x})$$
+$$= (\sum_{k} x_k - \bar{x} )^2 - \sum_{k} (x_k - \bar{x})^2$$
 
-$$ = \frac{-\sum_{k}(x_k - \bar{x})^2}{N(N-1)}$$ \newpage
+Por lo tanto
 
+$$ \mathbb{E}_{\pi}[((\pi x)_i - \pi \bar{x})((\pi x)_j - \pi \bar{x})] = \frac{1}{N(N-1)} [ (\sum_{k} x_k - \bar{x})^2 - \sum_{k} (x_k - \bar{x})^2]$$
+Y entonces 
+$$ = \frac{-\sum_{k}(x_k - \bar{x})^2}{N(N-1)}$$ 
 Luego
-
-$$\mathbb{E}_{\pi}(I) = \frac{N}{W} \frac{\sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij} (\frac{-\sum_{k}(x_k - \bar{x})^2}{N(N-1)})}{\sum _{i=1}^{n} (x_i -  \bar{x})^2}$$ Y por lo tanto
-
+$$\mathbb{E}_{\pi}(I) = \frac{N}{W} \frac{\sum_{i=1}^{n} \sum_{j=1}^{n} w_{ij} (\frac{-\sum_{k}(x_k - \bar{x})^2}{N(N-1)})}{\sum _{i=1}^{n} (x_i -  \bar{x})^2}$$ 
+De donde, simplificando términos, deducimos que
 $$\mathbb{E}_{\pi}(I) = - \frac{1}{N-1}$$
 
 Concluimos que de aceptar la hipótesis nula, se espera que
-
 $$\mathbb{E}(I) = - \frac{1}{N-1}$$
 
 \newpage
@@ -1568,7 +1576,7 @@ knitr::include_graphics("image/bronx_neighborhood_rook_queen.jpg")
 
 ## Anexo 7: Códigos para implementación de modelo GRF y visualización de R2 local
 
-*Entrenamiento modelo GRF de SpatialML*
+**Entrenamiento modelo GRF de SpatialML**
 
 El código empleado para usar el paquete *SpatialML* en el entrenamiento del modelo es el siguiente
 
@@ -1627,9 +1635,8 @@ grf_model <- grf(formula = formula_grf,
     coords = coords)
 ```
 
-\newpage
 
-*Comparativa de R2 local entre modelos GWR y GRF*
+**Comparativa de R2 local entre modelos GWR y GRF**
 
 Usamos ggplot para visualizar los 3 modelos sobre el mismo mapa y bajo la misma escala de colores
 
